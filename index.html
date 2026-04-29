@@ -348,6 +348,7 @@ tr:hover .pencil-btn{opacity:1}
 </style>
 </head>
 <body>
+<div id="js-error-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#a82828;color:#fff;font-size:13px;font-weight:500;padding:10px 20px;font-family:monospace"></div>
 <div id="password-screen" style="position:fixed;inset:0;background:#1a2a3a;z-index:999999;display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
   <div style="background:#fff;border-radius:16px;padding:40px 48px;width:360px;box-shadow:0 20px 60px rgba(0,0,0,0.4);text-align:center">
     <div style="width:56px;height:56px;background:linear-gradient(135deg,#3d7a2e,#2d6022);border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:24px">🔒</div>
@@ -523,6 +524,7 @@ if (authState === 'owner' || authState === '1') {
   <button class="app-tab" onclick="switchAppTab('invoices');renderStats();renderInvoices();updateNextInvoice();">Invoice Dashboard</button>
   <button class="app-tab" onclick="switchAppTab('eligibility');renderEligibility();">Eligibility Dashboard</button>
   <button class="app-tab" onclick="switchAppTab('referral');renderDrafts();updateDraftSelect();">Referral Dashboard</button>
+  <button class="app-tab" onclick="switchAppTab('subcontractors');renderPH();">Subcontractors</button>
 </div>
 
 <!-- Unsaved Banner -->
@@ -1082,6 +1084,178 @@ Patient was admitted to [Facility Name] on [Admission Date] to [Discharge Date] 
   </div>
 </div>
 
+
+<div id="tab-subcontractors" class="tab-content">
+  <div class="page">
+    <div class="section">
+      <div class="section-header">
+        <span class="section-title">Subcontractors</span>
+        <button class="btn btn-green" onclick="addPHPatient()">+ Add Patient</button>
+      </div>
+      <div class="section-body">
+
+        <!-- LLC Header -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-size:16px;font-weight:600;color:var(--text)">Phoenix Haven LLC</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">$66/day per patient &nbsp;·&nbsp; FL Portion: $33/day &nbsp;·&nbsp; <span id="ph-active-month-label"></span></div>
+          </div>
+        </div>
+
+        <!-- Month pills -->
+        <div class="month-pills" id="ph-month-pills"></div>
+
+        <!-- Stats bar -->
+        <div id="ph-stats-bar" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px"></div>
+
+        <!-- Inner tabs -->
+        <div style="display:flex;gap:0;border-bottom:1.5px solid var(--border);margin-bottom:16px" id="ph-inner-tabs">
+          <button class="ph-inner-tab active" onclick="switchPHTab('invoices')" style="padding:9px 18px;font-size:13px;font-weight:500;cursor:pointer;color:#2558a8;border:none;background:none;border-bottom:2.5px solid #2558a8;margin-bottom:-1.5px;font-family:inherit">Patients &amp; Invoices</button>
+          <button class="ph-inner-tab" onclick="switchPHTab('eligibility')" style="padding:9px 18px;font-size:13px;font-weight:500;cursor:pointer;color:var(--muted);border:none;background:none;border-bottom:2.5px solid transparent;margin-bottom:-1.5px;font-family:inherit">Eligibility</button>
+          <button class="ph-inner-tab" onclick="switchPHTab('agreements')" style="padding:9px 18px;font-size:13px;font-weight:500;cursor:pointer;color:var(--muted);border:none;background:none;border-bottom:2.5px solid transparent;margin-bottom:-1.5px;font-family:inherit">Agreements</button>
+          <button class="ph-inner-tab" onclick="switchPHTab('payments')" style="padding:9px 18px;font-size:13px;font-weight:500;cursor:pointer;color:var(--muted);border:none;background:none;border-bottom:2.5px solid transparent;margin-bottom:-1.5px;font-family:inherit">Payments</button>
+        </div>
+
+        <!-- Invoices panel -->
+        <div id="ph-panel-invoices">
+          <div class="controls">
+            <input class="search-box" id="ph-search" oninput="renderPH()" placeholder="Search patients...">
+            <button class="btn btn-navy" onclick="openPHAssignModal()">🔢 Assign invoice numbers</button>
+            <button class="btn btn-gold" onclick="openPHPrintAllModal()">🖨 Print all invoices</button>
+            <button class="btn btn-gray" onclick="openPHCopyModal()">📋 Copy to next month</button>
+          </div>
+          <div class="table-wrap">
+            <table id="ph-invoice-table">
+              <thead><tr>
+                <th>Patient</th><th>CIN</th><th>Invoice #</th><th>Days</th>
+                <th>Gross ($99)</th><th>Their cut ($66)</th><th>FL Portion ($33)</th>
+                <th>Dates</th><th>Status</th><th>Actions</th>
+              </tr></thead>
+              <tbody id="ph-invoice-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Eligibility panel -->
+        <div id="ph-panel-eligibility" style="display:none">
+          <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+            <button class="btn btn-green" onclick="openPHEligAddForm()">+ Add Patient</button>
+            <button class="btn btn-navy" onclick="openPHWeeklyCheck()">📋 Weekly Check</button>
+            <button class="btn" style="background:#c2460a;color:#fff" onclick="openPHInactiveEmail()">✉ Generate Email</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Patient</th><th>CIN</th><th>Status</th><th>Last Checked</th><th>Notes</th><th></th></tr></thead>
+              <tbody id="ph-elig-body"></tbody>
+            </table>
+          </div>
+          <!-- Add patient form -->
+          <div id="ph-elig-add-form" style="display:none;background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:16px;margin-top:12px">
+            <div style="font-size:13px;font-weight:600;margin-bottom:10px">Add Eligibility Patient</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
+              <input class="search-box" id="ph-el-name" placeholder="Patient name">
+              <input class="search-box" id="ph-el-cin" placeholder="CIN">
+              <select class="filter-select" id="ph-el-status"><option value="pending">Pending</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
+            </div>
+            <input class="search-box" id="ph-el-notes" placeholder="Notes" style="width:100%;margin-bottom:10px">
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-green" onclick="confirmPHEligAdd()">Add</button>
+              <button class="btn btn-gray" onclick="document.getElementById('ph-elig-add-form').style.display='none'">Cancel</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Agreements panel -->
+        <div id="ph-panel-agreements" style="display:none">
+          <div style="display:flex;gap:8px;margin-bottom:12px">
+            <button class="btn btn-green" onclick="openPHAgreementAdd()">+ Add Agreement</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Patient</th><th>CIN</th><th>Auth Date</th><th>6-Month Date</th><th>Agreement Exp.</th><th>Comments</th><th></th></tr></thead>
+              <tbody id="ph-agr-body"></tbody>
+            </table>
+          </div>
+          <div id="ph-agr-add-form" style="display:none;background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:16px;margin-top:12px">
+            <div style="font-size:13px;font-weight:600;margin-bottom:10px">Add Agreement</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:10px">
+              <input class="search-box" id="ph-ag-name" placeholder="Patient name">
+              <input class="search-box" id="ph-ag-cin" placeholder="CIN">
+              <input class="search-box" id="ph-ag-auth" type="date" placeholder="Auth date">
+              <input class="search-box" id="ph-ag-exp" type="date" placeholder="Agreement exp.">
+            </div>
+            <input class="search-box" id="ph-ag-comments" placeholder="Comments" style="width:100%;margin-bottom:10px">
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-green" onclick="confirmPHAgrAdd()">Add</button>
+              <button class="btn btn-gray" onclick="document.getElementById('ph-agr-add-form').style.display='none'">Cancel</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Payments panel -->
+        <div id="ph-panel-payments" style="display:none">
+          <div id="ph-payments-body"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PH Assign Modal -->
+<div id="ph-assign-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.5);align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:16px;padding:24px;width:480px;max-width:95vw;max-height:80vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,0.2)">
+    <div style="font-size:15px;font-weight:600;margin-bottom:4px">Assign Invoice Numbers</div>
+    <div style="font-size:12px;color:#6b7589;margin-bottom:12px">Phoenix Haven — <span id="ph-assign-month"></span> · Starting from <strong id="ph-assign-start"></strong></div>
+    <div style="display:grid;grid-template-columns:1fr auto;font-size:11px;font-weight:600;color:#7a8fa8;text-transform:uppercase;padding:6px 12px;background:#f0f4fa;border-radius:6px;margin-bottom:4px"><span>Patient</span><span>Include</span></div>
+    <div id="ph-assign-list" style="max-height:300px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:8px"></div>
+    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+      <button class="btn btn-gray" onclick="closePHAssignModal()">Cancel</button>
+      <button class="btn btn-green" onclick="confirmPHAssign()">Assign</button>
+    </div>
+  </div>
+</div>
+
+<!-- PH Copy Modal -->
+<div id="ph-copy-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.5);align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:16px;padding:24px;width:480px;max-width:95vw;max-height:80vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,0.2)">
+    <div style="font-size:15px;font-weight:600;margin-bottom:4px">Copy to Next Month</div>
+    <div style="font-size:12px;color:#6b7589;margin-bottom:12px">Select Phoenix Haven patients to copy to <strong id="ph-copy-next-month"></strong></div>
+    <div id="ph-copy-list" style="max-height:300px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:8px"></div>
+    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+      <button class="btn btn-gray" onclick="closePHCopyModal()">Cancel</button>
+      <button class="btn btn-green" onclick="confirmPHCopy()">Copy</button>
+    </div>
+  </div>
+</div>
+
+<!-- PH Print All Modal -->
+<div id="ph-print-all-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.5);align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:16px;padding:24px;width:480px;max-width:95vw;max-height:80vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,0.2)">
+    <div style="font-size:15px;font-weight:600;margin-bottom:4px">Print All Invoices</div>
+    <div style="font-size:12px;color:#6b7589;margin-bottom:12px">Phoenix Haven — <span id="ph-print-month"></span></div>
+    <div id="ph-print-list" style="max-height:300px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:8px"></div>
+    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+      <button class="btn btn-gray" onclick="closePHPrintAllModal()">Cancel</button>
+      <button class="btn btn-green" onclick="confirmPHPrintAll()">Print Selected</button>
+    </div>
+  </div>
+</div>
+
+<!-- PH Weekly Check Modal -->
+<div id="ph-weekly-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.5);align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:16px;padding:24px;width:520px;max-width:95vw;max-height:80vh;overflow-y:auto;box-shadow:0 8px 40px rgba(0,0,0,0.2)">
+    <div style="font-size:15px;font-weight:600;margin-bottom:4px">Weekly Eligibility Check</div>
+    <div style="font-size:12px;color:#6b7589;margin-bottom:6px">Set status for all Phoenix Haven patients as of today</div>
+    <div id="ph-weekly-list" style="max-height:360px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:12px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-gray" onclick="closePHWeeklyModal()">Cancel</button>
+      <button class="btn btn-green" onclick="confirmPHWeeklyCheck()">Save</button>
+    </div>
+  </div>
+</div>
+
+
 <!-- Invoice Modal -->
 <div class="invoice-overlay" id="invoice-overlay" style="display:none;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.5);align-items:center;justify-content:center">
   <div class="invoice-modal" id="invoice-print-wrap">
@@ -1117,6 +1291,14 @@ const MONTH_COLORS = {
 let TRACKER = [{"Patient Name": "Adrian Scriven", "CIN": "91468120C", "Auth Date": "12/16/2025", "6 Month Date": "6/14/2026", "Agreement Exp.": "2026-03-16", "Comments": "re-auth needed - sent email to shadya for re-auth"}, {"Patient Name": "Mark Candelent", "CIN": "96032700C", "Auth Date": "2/10/2026", "6 Month Date": "8/9/2026", "Agreement Exp.": "2026-04-10", "Comments": "re-auth needed - sent email to shadya for re-auth"}, {"Patient Name": "Thomas Jacobson", "CIN": "96739911F", "Auth Date": "1/20/2026", "6 Month Date": "7/19/2026", "Agreement Exp.": "2026-04-21", "Comments": "re-auth needed - sent email to shadya for re-auth"}, {"Patient Name": "Mario Reyes", "CIN": "97870158C", "Auth Date": "1/23/2026", "6 Month Date": "7/22/2026", "Agreement Exp.": "2026-04-23", "Comments": "re-auth needed - sent email to shadya for re-auth"}, {"Patient Name": "Jason Apted", "CIN": "90684329E", "Auth Date": "9/22/2025", "6 Month Date": "4/28/2026", "Agreement Exp.": "2026-04-28", "Comments": "Move out date 4/28/2026 (received 1 re-auth)"}, {"Patient Name": "Jeff Armstrong", "CIN": "90559960A", "Auth Date": "1/30/2026", "6 Month Date": "7/30/2026", "Agreement Exp.": "2026-04-30", "Comments": "re-auth needed - sent email to shadya for re-auth"}, {"Patient Name": "Anthony Regino", "CIN": "93619242A", "Auth Date": "2/6/2026", "6 Month Date": "8/4/2026", "Agreement Exp.": "2026-05-07", "Comments": "re-auth needed - sent email to shadya for re-auth"}, {"Patient Name": "Chris Moore", "CIN": "98881670C", "Auth Date": "2/6/2026", "6 Month Date": "8/4/2026", "Agreement Exp.": "2026-05-07", "Comments": "re-auth needed - sent email to shadya for re-auth"}, {"Patient Name": "Keith Braly", "CIN": "95456700A", "Auth Date": "2/12/2026", "6 Month Date": "8/11/2026", "Agreement Exp.": "2026-05-13", "Comments": "re-auth needed - sent email to shadya for re-auth"}, {"Patient Name": "Dirk Burton", "CIN": "96907813C", "Auth Date": "2/12/2026", "6 Month Date": "8/14/2026", "Agreement Exp.": "2026-05-13", "Comments": "re-auth needed - sent email to shadya for re-auth"}, {"Patient Name": "Joseph Smith", "CIN": "91647890D", "Auth Date": "2/17/2026", "6 Month Date": "8/17/2026", "Agreement Exp.": "2026-05-18", "Comments": null}, {"Patient Name": "Jeremy Philips", "CIN": "97640281C", "Auth Date": "11/20/2025", "6 Month Date": "5/20/2026", "Agreement Exp.": "2026-05-20", "Comments": "Move out date 5/20/2026 (received 1 re-auth)"}, {"Patient Name": "Christian Sterling", "CIN": "90274306D", "Auth Date": "2/25/2026", "6 Month Date": "8/25/2026", "Agreement Exp.": "2026-05-26", "Comments": null}, {"Patient Name": "Richard Davis", "CIN": "94256406A", "Auth Date": "3/2/2026", "6 Month Date": null, "Agreement Exp.": "2026-05-31", "Comments": null}, {"Patient Name": "Robert Mayhood", "CIN": "97165865C", "Auth Date": "12/3/2025", "6 Month Date": "6/2/2026", "Agreement Exp.": "2026-06-02", "Comments": "move out date is 6/2/2026 (received 1 re-auth)"}, {"Patient Name": "Jacob Swenor", "CIN": "95340044A", "Auth Date": "11/13/2025", "6 Month Date": "6/3/2026", "Agreement Exp.": "2026-06-03", "Comments": "Move out date 6/3/2026 (received 1 re-auth)"}, {"Patient Name": "Raymond Ambrose", "CIN": "XDJ91022281D", "Auth Date": "3/6/2026", "6 Month Date": "9/6/2026", "Agreement Exp.": "2026-06-04", "Comments": null}, {"Patient Name": "Christopher Beren", "CIN": "98226581C", "Auth Date": "3/9/2026", "6 Month Date": "9/9/2026", "Agreement Exp.": "2026-06-07", "Comments": null}, {"Patient Name": "Cory Layton", "CIN": "91909077F", "Auth Date": "3/9/2026", "6 Month Date": "9/9/2026", "Agreement Exp.": "2026-06-07", "Comments": "emailed shadya for agreement status 3/9"}, {"Patient Name": "Nikolas Russo", "CIN": "XDJ94219128A", "Auth Date": "3/11/2026", "6 Month Date": "9/11/2026", "Agreement Exp.": "2026-06-09", "Comments": null}, {"Patient Name": "Talian Adams", "CIN": "92121670D", "Auth Date": "1/6/2026", "6 Month Date": "7/6/2026", "Agreement Exp.": "2026-07-06", "Comments": "Move out date 7/6/2026 (1 re-auth received)"}, {"Patient Name": "Juan Salinas", "CIN": "90916060A", "Auth Date": "2/17/2026", "6 Month Date": "7/19/2026", "Agreement Exp.": "2026-07-19", "Comments": "move out date 7/19/2026 (no re-auth needed)"}, {"Patient Name": "Tyrese Baker", "CIN": null, "Auth Date": "Agreement pending", "6 Month Date": null, "Agreement Exp.": null, "Comments": null}, {"Patient Name": "Steven Barrera", "CIN": "XDJ94014759A", "Auth Date": "2/10/2026", "6 Month Date": null, "Agreement Exp.": "2026-05-11", "Comments": null}, {"Patient Name": "Larry Theroux", "CIN": null, "Auth Date": "4/7/2026", "6 Month Date": null, "Agreement Exp.": "2026-06-14", "Comments": null}, {"Patient Name": "Jarrett Tanforan", "CIN": null, "Auth Date": "Agreement pending", "6 Month Date": null, "Agreement Exp.": null, "Comments": null}, {"Patient Name": "Vincent Ilomin", "CIN": null, "Auth Date": "Agreement pending", "6 Month Date": null, "Agreement Exp.": null, "Comments": null}, {"Patient Name": "Don Ford", "CIN": null, "Auth Date": "Agreement pending", "6 Month Date": null, "Agreement Exp.": null, "Comments": null}, {"Patient Name": "Shawn Weber", "CIN": null, "Auth Date": "Agreement pending", "6 Month Date": null, "Agreement Exp.": null, "Comments": null}, {"Patient Name": "Tiari Williams", "CIN": null, "Auth Date": "Agreement pending", "6 Month Date": null, "Agreement Exp.": null, "Comments": null}, {"Patient Name": "Christopher Hauenstein", "CIN": null, "Auth Date": "Agreement pending", "6 Month Date": null, "Agreement Exp.": null, "Comments": null}, {"Patient Name": "Jonathan Muela", "CIN": null, "Auth Date": "Agreement pending", "6 Month Date": null, "Agreement Exp.": null, "Comments": null}, {"Patient Name": "Dean Whittington", "CIN": null, "Auth Date": "Agreement pending", "6 Month Date": null, "Agreement Exp.": null, "Comments": null}, {"Patient Name": "Adam Westbrook", "CIN": null, "Auth Date": "Agreement pending", "6 Month Date": null, "Agreement Exp.": null, "Comments": null}, {"Patient Name": "Jason Gauthier", "CIN": null, "Auth Date": "Agreement pending", "6 Month Date": null, "Agreement Exp.": null, "Comments": null}, {"Patient Name": "Christopher Lee", "CIN": null, "Auth Date": "Agreement pending", "6 Month Date": null, "Agreement Exp.": null, "Comments": null}, {"Patient Name": "Gerald Herndon", "CIN": null, "Auth Date": "Agreement pending", "6 Month Date": null, "Agreement Exp.": null, "Comments": null}, {"Patient Name": "Jermaine Bowden", "CIN": null, "Auth Date": "Agreement pending", "6 Month Date": null, "Agreement Exp.": null, "Comments": null}, {"Patient Name": "Christopher Holden", "CIN": null, "Auth Date": "Agreement pending", "6 Month Date": null, "Agreement Exp.": null, "Comments": null}, {"Patient Name": "Jacob Hershey", "CIN": null, "Auth Date": "Agreement pending", "6 Month Date": null, "Agreement Exp.": null, "Comments": null}, {"Patient Name": "Daniel Hutchinson", "CIN": null, "Auth Date": "Agreement pending", "6 Month Date": null, "Agreement Exp.": null, "Comments": null}, {"Patient Name": "Daniel Reed", "CIN": null, "Auth Date": "Agreement pending", "6 Month Date": null, "Agreement Exp.": null, "Comments": null}, {"Patient Name": "Matthew Matos", "CIN": null, "Auth Date": "Agreement pending", "6 Month Date": null, "Agreement Exp.": null, "Comments": null}, {"Patient Name": "Isreal Mendez", "CIN": null, "Auth Date": "Agreement pending", "6 Month Date": null, "Agreement Exp.": null, "Comments": null}, {"Patient Name": "David Fashinell", "CIN": null, "Auth Date": "Agreement pending", "6 Month Date": null, "Agreement Exp.": null, "Comments": null}, {"Patient Name": "Adonis Morgan", "CIN": null, "Auth Date": "Agreement pending", "6 Month Date": null, "Agreement Exp.": null, "Comments": null}, {"Patient Name": "Uzziah Allen", "CIN": null, "Auth Date": "Agreement pending", "6 Month Date": null, "Agreement Exp.": null, "Comments": null}, {"Patient Name": "David Garcia", "CIN": "XDJ91909077F", "Auth Date": "3/9/2026", "6 Month Date": "9/9/2026", "Agreement Exp.": "2026-06-07", "Comments": ""}, {"Patient Name": "Robert Vilar", "CIN": null, "Auth Date": "Agreement pending", "6 Month Date": null, "Agreement Exp.": null, "Comments": null}, {"Patient Name": "Fernando Cruz", "CIN": null, "Auth Date": "Agreement pending", "6 Month Date": null, "Agreement Exp.": null, "Comments": null}, {"Patient Name": "Emilio Padilla", "CIN": "", "Auth Date": "3/9/2026", "6 Month Date": null, "Agreement Exp.": "2026-06-07", "Comments": null}, {"Patient Name": "Jesse Lowrey", "CIN": null, "Auth Date": "Agreement pending", "6 Month Date": null, "Agreement Exp.": null, "Comments": null}, {"Patient Name": "Anthony Hill", "CIN": null, "Auth Date": "Agreement pending", "6 Month Date": null, "Agreement Exp.": null, "Comments": null}, {"Patient Name": "Jeffrey Mouer", "CIN": null, "Auth Date": "Agreement pending", "6 Month Date": null, "Agreement Exp.": null, "Comments": null}, {"Patient Name": "Nathon Daskalos", "CIN": null, "Auth Date": "FREE", "6 Month Date": null, "Agreement Exp.": null, "Comments": null}, {"Patient Name": "Varnell Hutchinson", "CIN": null, "Auth Date": "resend ref ins bad", "6 Month Date": null, "Agreement Exp.": null, "Comments": null}, {"Patient Name": "Ignacio Fernando Madrid-Ortiz", "CIN": null, "Auth Date": "ref needed", "6 Month Date": null, "Agreement Exp.": null, "Comments": null}, {"Patient Name": "Daniel Knowlton", "CIN": null, "Auth Date": "ref needed", "6 Month Date": null, "Agreement Exp.": null, "Comments": null}, {"Patient Name": "Christopher Moore", "CIN": "XDJ98881670C", "Auth Date": "2/6/2026", "6 Month Date": "", "Agreement Exp.": "2026-05-07", "Comments": ""}, {"Patient Name": "Keith Braley", "CIN": "XDJ95456700A", "Auth Date": "2/12/2026", "6 Month Date": "", "Agreement Exp.": "2026-05-13", "Comments": ""}];
 let COMPLETED = [{"Patient Name":"Mario Hackett","CIN":"92743461A","Auth Date":"10/3/2025","6 Month Date":"3/31/2026","Agreement Exp.":"DISCHARGED EARLY","Comments":"Patient discharged early (12/29/2025)"},{"Patient Name":"James Lopez","CIN":null,"Auth Date":"12/17/2025","6 Month Date":"12/19/2025","Agreement Exp.":"WALKAWAY","Comments":"Patient left on 12/19/2025"},{"Patient Name":"Mark Brown","CIN":"91045265C","Auth Date":"9/3/2025","6 Month Date":"3/2/2026","Agreement Exp.":"2026-03-02","Comments":"Move out date 3/2/2026 (no re-auth needed)"},{"Patient Name":"Alfredo Ramos","CIN":"93931680G","Auth Date":"10/15/2025","6 Month Date":"4/12/2026","Agreement Exp.":"2026-01-12","Comments":"Messaged Shadya for updated agreement - Moved out 3/1/26 - Anthem would not authorize after 1/12/26"},{"Patient Name":"Jose Cortez","CIN":"98887391C","Auth Date":"9/4/2025","6 Month Date":"3/3/2026","Agreement Exp.":"2026-03-03","Comments":"Move out date 3/3/2026 (no re-auth needed)"},{"Patient Name":"Leo Cardenas","CIN":null,"Auth Date":"Agreement pending","6 Month Date":null,"Agreement Exp.":null,"Comments":"emailed shadya for agreement status 3/9 (3rd time) - patient already moved out"},{"Patient Name":"Mark Fisher","CIN":null,"Auth Date":"Agreement pending","6 Month Date":null,"Agreement Exp.":null,"Comments":"last day was 3/19/26, agreement received for 2/25-3/16"},{"Patient Name":"Don Rose","CIN":"99245441E","Auth Date":"3/2/2026","6 Month Date":null,"Agreement Exp.":null,"Comments":"kicked out at 3/26/26"},{"Patient Name":"Aaron Luna","CIN":"98003133F","Auth Date":"9/16/2025","6 Month Date":"3/14/2026","Agreement Exp.":"2026-03-14","Comments":"Move out date 3/14/2026 (no re-auth needed)"},{"Patient Name":"Librato Lorta","CIN":"94742325C","Auth Date":"9/29/2025","6 Month Date":"3/25/2026","Agreement Exp.":"2026-03-25","Comments":"Move out date 3/25/2026 (no re-auth needed)"},{"Patient Name":"Myles McDonough","CIN":"95558922C","Auth Date":"12/23/2025","6 Month Date":"6/21/2026","Agreement Exp.":"2026-03-23","Comments":"re-auth needed"},{"Patient Name":"Wilfido Gualip","CIN":"93803750H","Auth Date":"12/11/2025","6 Month Date":"6/9/2026","Agreement Exp.":"2026-04-23","Comments":"(received re-auth) (discharged from program)"},{"Patient Name":"Jason Hawkins","CIN":"MNL954W06878","Auth Date":"2/2/2026","6 Month Date":"8/2/2026","Agreement Exp.":"2026-05-03","Comments":null},{"Patient Name":"Garret Stromberg","CIN":"94925932D","Auth Date":"2/10/2026","6 Month Date":"8/9/2026","Agreement Exp.":"2026-05-11","Comments":null}];
 let ELIGIBILITY_DATA = [];
+
+let PH_INVOICE_DATA_ARR = [];
+let PH_ELIGIBILITY_DATA = [];
+let PH_TRACKER = [];
+let PH_PAYMENTS = {};
+let phActiveMonth = _months[new Date().getMonth()];
+let phInnerTab = 'invoices';
+
 let REFERRAL_DRAFTS = (function(){ try { const d=localStorage.getItem('fl_referral_drafts'); return d?JSON.parse(d):[]; } catch(e){ return []; }})();
 let INVOICE_DATA_ARR = [{"month": "February", "invoice": "N/A", "name": "Rodney McNary", "cin": "FREE", "agreement": "FREE", "firstDay": "FREE", "lastDay": "FREE", "rate": 99, "total": 0, "payment": "FREE"}, {"month": "February", "invoice": "FL-1068", "name": "Mark Brown", "cin": "XDJ91045265C", "agreement": "yes", "firstDay": "2/1/2026", "lastDay": "02/28/2026", "rate": 99.0, "total": 2772.0, "payment": "03/02/2026"}, {"month": "February", "invoice": "FL-1069", "name": "Jose Cortez", "cin": "XDJ98887391C", "agreement": "yes", "firstDay": "2/1/2026", "lastDay": "02/28/2026", "rate": 99.0, "total": 2772.0, "payment": "03/02/2026"}, {"month": "February", "invoice": "FL-1070", "name": "Richard Jackson", "cin": "XDJ91452845C", "agreement": "yes", "firstDay": "2/1/2026", "lastDay": "02/20/2026", "rate": 99.0, "total": 1980.0, "payment": "03/02/2026"}, {"month": "February", "invoice": "FL-1071", "name": "Aaron Luna", "cin": "XDJ98003133F", "agreement": "yes", "firstDay": "2/1/2026", "lastDay": "02/28/2026", "rate": 99.0, "total": 2772.0, "payment": "03/02/2026"}, {"month": "February", "invoice": "FL-1072", "name": "Jason Apted", "cin": "XDJ90684329E", "agreement": "yes", "firstDay": "2/1/2026", "lastDay": "02/28/2026", "rate": 99.0, "total": 2772.0, "payment": "03/02/2026"}, {"month": "February", "invoice": "FL-1073", "name": "Librato Lorta", "cin": "XDJ94742325C", "agreement": "yes", "firstDay": "2/1/2026", "lastDay": "02/28/2026", "rate": 99.0, "total": 2772.0, "payment": "03/02/2026"}, {"month": "February", "invoice": "billed only through 1/12/26", "name": "Alfredo Ramos", "cin": "XDJ93931680G", "agreement": "WAITING FOR RE-AUTH", "firstDay": "", "lastDay": "", "rate": 99.0, "total": 0, "payment": ""}, {"month": "February", "invoice": "FL-1074", "name": "Jacob Swenor", "cin": "XDJ95340044A", "agreement": "yes", "firstDay": "2/1/2026", "lastDay": "02/11/2026", "rate": 99.0, "total": 1089.0, "payment": "03/02/2026"}, {"month": "February", "invoice": "FL-1075", "name": "Jeremy Philips", "cin": "XDJ97640281C", "agreement": "yes", "firstDay": "2/1/2026", "lastDay": "02/18/2026", "rate": 99.0, "total": 1782.0, "payment": "03/02/2026"}, {"month": "February", "invoice": "Add from move in", "name": "Leo Cardenas", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99.0, "total": 0, "payment": ""}, {"month": "February", "invoice": "FL-1076", "name": "Myles McDonough", "cin": "XDJ95558922C", "agreement": "yes", "firstDay": "2/1/2026", "lastDay": "02/28/2026", "rate": 99.0, "total": 2772.0, "payment": "03/02/2026"}, {"month": "February", "invoice": "FL-1077", "name": "Robert Mayhood", "cin": "XDJ97165865C", "agreement": "yes", "firstDay": "2/1/2026", "lastDay": "02/28/2026", "rate": 99.0, "total": 2772.0, "payment": "03/02/2026"}, {"month": "February", "invoice": "FL-1078", "name": "Wilfido Gualip", "cin": "XDJ93803750H", "agreement": "yes", "firstDay": "2/1/2026", "lastDay": "02/28/2026", "rate": 99.0, "total": 2772.0, "payment": "03/02/2026"}, {"month": "February", "invoice": "FL-1079", "name": "Adrian Scriven", "cin": "XDJ91468120C", "agreement": "yes", "firstDay": "2/1/2026", "lastDay": "02/28/2026", "rate": 99.0, "total": 2772.0, "payment": "03/02/2026"}, {"month": "February", "invoice": "FL-1080", "name": "Christopher Cooper", "cin": "XDJ98904192D", "agreement": "yes", "firstDay": "2/1/2026", "lastDay": "02/09/2026", "rate": 99.0, "total": 891.0, "payment": "03/02/2026"}, {"month": "February", "invoice": "FL-1081", "name": "Talian Adams", "cin": "XDJ92121670D", "agreement": "yes", "firstDay": "2/1/2026", "lastDay": "02/28/2026", "rate": 99.0, "total": 2772.0, "payment": "03/02/2026"}, {"month": "February", "invoice": "FL-1082", "name": "Kevin Wallace", "cin": "XDJ95653112A", "agreement": "yes", "firstDay": "2/1/2026", "lastDay": "02/24/2026", "rate": 99.0, "total": 2376.0, "payment": "03/02/2026"}, {"month": "February", "invoice": "", "name": "Cory Layton", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99.0, "total": 0, "payment": ""}, {"month": "February", "invoice": "FL-1083", "name": "Thomas Jacobson", "cin": "XDJ96739911F", "agreement": "yes", "firstDay": "2/1/2026", "lastDay": "02/28/2026", "rate": 99.0, "total": 2772.0, "payment": "03/02/2026"}, {"month": "February", "invoice": "FL-1084", "name": "Jason Hawkins", "cin": "MNL954W06878", "agreement": "yes", "firstDay": "2/2/2026", "lastDay": "02/28/2026", "rate": 99.0, "total": 2673.0, "payment": "03/02/2026"}, {"month": "February", "invoice": "", "name": "Christopher Beren", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99.0, "total": 0, "payment": ""}, {"month": "February", "invoice": "discharged 2/24", "name": "Mario Myers", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99.0, "total": 0, "payment": ""}, {"month": "February", "invoice": "FL-1085", "name": "Mario Reyes", "cin": "XDJ97870158C", "agreement": "yes", "firstDay": "2/1/2026", "lastDay": "02/28/2026", "rate": 99.0, "total": 3663.0, "payment": "03/02/2026"}, {"month": "February", "invoice": "FL-1086", "name": "Christopher Moore", "cin": "XDJ98881670C", "agreement": "yes", "firstDay": "2/6/2026", "lastDay": "02/28/2026", "rate": 99.0, "total": 2277.0, "payment": "03/02/2026"}, {"month": "February", "invoice": "FL-1087", "name": "Jeff Armstrong", "cin": "XDJ90559960A", "agreement": "yes", "firstDay": "2/1/2026", "lastDay": "02/28/2026", "rate": 99.0, "total": 2970.0, "payment": "03/02/2026"}, {"month": "February", "invoice": "FL-1088", "name": "Anthony Regino", "cin": "XDJ93619242A", "agreement": "yes", "firstDay": "2/6/2026", "lastDay": "02/28/2026", "rate": 99.0, "total": 2277.0, "payment": "03/02/2026"}, {"month": "February", "invoice": "dischared 2/21", "name": "Carey Johnson", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99.0, "total": 0, "payment": ""}, {"month": "February", "invoice": "FL-1089", "name": "Keith Braley", "cin": "XDJ95456700A", "agreement": "yes", "firstDay": "2/12/2026", "lastDay": "02/28/2026", "rate": 99.0, "total": 1683.0, "payment": "03/02/2026"}, {"month": "February", "invoice": "FL-1090", "name": "Mark Candelent", "cin": "XDJ9603200C", "agreement": "yes", "firstDay": "2/10/2026", "lastDay": "02/28/2026", "rate": 99.0, "total": 1881.0, "payment": "03/02/2026"}, {"month": "February", "invoice": "FL-1094", "name": "Joseph Smith", "cin": "XDJ91647890D", "agreement": "yes", "firstDay": "2/17/2026", "lastDay": "02/28/2026", "rate": 99.0, "total": 1188.0, "payment": ""}, {"month": "February", "invoice": "FL-1091", "name": "Steven Barrera", "cin": "XDJ94014759A", "agreement": "yes", "firstDay": "2/10/2026", "lastDay": "02/28/2026", "rate": 99.0, "total": 1881.0, "payment": "03/02/2026"}, {"month": "February", "invoice": "FL-1092", "name": "Larry Theroux", "cin": "XDJ96811481F", "agreement": "yes", "firstDay": "2/12/2026", "lastDay": "02/28/2026", "rate": 99.0, "total": 1683.0, "payment": "03/02/2026"}, {"month": "February", "invoice": "FL-1093", "name": "Garret Stromberg", "cin": "XDJ94925932D", "agreement": "yes", "firstDay": "2/10/2026", "lastDay": "02/28/2026", "rate": 99.0, "total": 1881.0, "payment": "03/02/2026"}, {"month": "February", "invoice": "", "name": "Dirk Burton", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99.0, "total": 0, "payment": ""}, {"month": "February", "invoice": "", "name": "Jarrett Tanforan", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99.0, "total": 0, "payment": ""}, {"month": "February", "invoice": "", "name": "Juan Salinas", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99.0, "total": 0, "payment": ""}, {"month": "February", "invoice": "", "name": "Vince Ilomin", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99.0, "total": 0, "payment": ""}, {"month": "February", "invoice": "", "name": "Don Ford", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99.0, "total": 0, "payment": ""}, {"month": "February", "invoice": "", "name": "Mark Fisher", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99.0, "total": 0, "payment": ""}, {"month": "February", "invoice": "", "name": "Raymond Ambrose", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99.0, "total": 0, "payment": ""}, {"month": "February", "invoice": "", "name": "Shane Dellinger", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99.0, "total": 0, "payment": ""}, {"month": "February", "invoice": "", "name": "Christian Sterling", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99.0, "total": 0, "payment": ""}, {"month": "February", "invoice": "", "name": "Shawn Weber", "cin": "ref needed", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99.0, "total": 0, "payment": ""}, {"month": "February", "invoice": "", "name": "Don Rose", "cin": "ref needed", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99.0, "total": 0, "payment": ""}, {"month": "February", "invoice": "", "name": "Richard Davis", "cin": "ref needed", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99.0, "total": 0, "payment": ""}, {"month": "February", "invoice": "", "name": "Uzziah Allen", "cin": "ref needed", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99.0, "total": 0, "payment": ""}, {"month": "March", "invoice": "", "name": "Rodney McNary", "cin": "FREE", "agreement": "", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "March", "invoice": "FL-1095", "name": "Mark Brown", "cin": "XDJ91045265C", "agreement": "yes", "firstDay": "3/1/2026", "lastDay": "03/02/2026", "rate": 99.0, "total": 198.0, "payment": "yes"}, {"month": "March", "invoice": "FL-1096", "name": "Jose Cortez", "cin": "XDJ98887391C", "agreement": "not eligible", "firstDay": "3/1/2026", "lastDay": "03/03/2026", "rate": 99.0, "total": 297.0, "payment": ""}, {"month": "March", "invoice": "FL-1097", "name": "Aaron Luna", "cin": "XDJ98003133F", "agreement": "yes", "firstDay": "3/1/2026", "lastDay": "03/14/2026", "rate": 99.0, "total": 1386.0, "payment": "yes"}, {"month": "March", "invoice": "FL-1098", "name": "Jason Apted", "cin": "XDJ90684329E", "agreement": "yes", "firstDay": "3/1/2026", "lastDay": "03/31/2026", "rate": 99.0, "total": 3069.0, "payment": "yes"}, {"month": "March", "invoice": "FL-1099", "name": "Librato Lorta", "cin": "XDJ94742325C", "agreement": "yes", "firstDay": "3/1/2026", "lastDay": "03/25/2026", "rate": 99.0, "total": 2475.0, "payment": "yes"}, {"month": "March", "invoice": "FL-1100", "name": "Jacob Swenor", "cin": "XDJ95340044A", "agreement": "yes", "firstDay": "3/1/2026", "lastDay": "03/31/2026", "rate": 99.0, "total": 4752.0, "payment": "yes"}, {"month": "March", "invoice": "FL-1101", "name": "Jeremy Philips", "cin": "XDJ97640281C", "agreement": "yes", "firstDay": "3/1/2026", "lastDay": "03/31/2026", "rate": 99.0, "total": 4059.0, "payment": "yes"}, {"month": "March", "invoice": "FL-1102", "name": "Myles McDonough", "cin": "XDJ95558922C", "agreement": "yes", "firstDay": "3/1/2026", "lastDay": "03/23/2026", "rate": 99.0, "total": 2277.0, "payment": "yes"}, {"month": "March", "invoice": "FL-1103", "name": "Robert Mayhood", "cin": "XDJ97165865C", "agreement": "yes", "firstDay": "3/1/2026", "lastDay": "03/31/2026", "rate": 99.0, "total": 3069.0, "payment": "yes"}, {"month": "March", "invoice": "FL-1104", "name": "Wilfido Gualip", "cin": "XDJ93803750H", "agreement": "yes", "firstDay": "3/1/2026", "lastDay": "03/20/2026", "rate": 99.0, "total": 1980.0, "payment": "yes"}, {"month": "March", "invoice": "", "name": "Adrian Scriven", "cin": "XDJ91468120C", "agreement": "waiting for re-auth", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "March", "invoice": "FL-1105", "name": "Talian Adams", "cin": "XDJ92121670D", "agreement": "yes", "firstDay": "3/1/2026", "lastDay": "03/31/2026", "rate": 99.0, "total": 3069.0, "payment": "yes"}, {"month": "March", "invoice": "", "name": "Cory Layton", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "March", "invoice": "FL-1106", "name": "Thomas Jacobson", "cin": "XDJ96739911F", "agreement": "yes", "firstDay": "3/1/2026", "lastDay": "03/31/2026", "rate": 99.0, "total": 3069.0, "payment": "yes"}, {"month": "March", "invoice": "FL-1107", "name": "Jason Hawkins", "cin": "MNL954W06878", "agreement": "yes", "firstDay": "3/1/2026", "lastDay": "03/31/2026", "rate": 99.0, "total": 3069.0, "payment": "yes"}, {"month": "March", "invoice": "FL-1126", "name": "Christopher Beren", "cin": "XDJ98226581C", "agreement": "yes", "firstDay": "3/9/2026", "lastDay": "03/31/2026", "rate": 99.0, "total": 2277.0, "payment": ""}, {"month": "March", "invoice": "FL-1108", "name": "Mario Reyes", "cin": "XDJ97870158C", "agreement": "yes", "firstDay": "3/1/2026", "lastDay": "03/31/2026", "rate": 99.0, "total": 3069.0, "payment": "yes"}, {"month": "March", "invoice": "FL-1109", "name": "Christopher Moore", "cin": "XDJ98881670C", "agreement": "yes", "firstDay": "3/1/2026", "lastDay": "03/31/2026", "rate": 99.0, "total": 3069.0, "payment": "yes"}, {"month": "March", "invoice": "FL-1110", "name": "Shane Dellinger", "cin": "XDJ98922978E", "agreement": "yes", "firstDay": "2/25/2026", "lastDay": "02/27/2026", "rate": 99.0, "total": 297.0, "payment": "yes"}, {"month": "March", "invoice": "FL-1111", "name": "Jeff Armstrong", "cin": "XDJ90559960A", "agreement": "yes", "firstDay": "3/1/2026", "lastDay": "03/31/2026", "rate": 99.0, "total": 3069.0, "payment": "yes"}, {"month": "March", "invoice": "FL-1112", "name": "Anthony Regino", "cin": "XDJ93619242A", "agreement": "yes", "firstDay": "3/1/2026", "lastDay": "03/31/2026", "rate": 99.0, "total": 3069.0, "payment": "yes"}, {"month": "March", "invoice": "FL-1113", "name": "Keith Braley", "cin": "XDJ95456700A", "agreement": "yes", "firstDay": "3/1/2026", "lastDay": "03/31/2026", "rate": 99.0, "total": 3069.0, "payment": "yes"}, {"month": "March", "invoice": "FL-1114", "name": "Mark Candelent", "cin": "XDJ9603200C", "agreement": "yes", "firstDay": "3/1/2026", "lastDay": "03/31/2026", "rate": 99.0, "total": 3069.0, "payment": "yes"}, {"month": "March", "invoice": "FL-1115", "name": "Joseph Smith", "cin": "XDJ91647890D", "agreement": "yes", "firstDay": "3/1/2026", "lastDay": "03/31/2026", "rate": 99.0, "total": 3069.0, "payment": "yes"}, {"month": "March", "invoice": "FL-1116", "name": "Steven Barrera", "cin": "XDJ94014759A", "agreement": "yes", "firstDay": "3/1/2026", "lastDay": "03/31/2026", "rate": 99.0, "total": 3069.0, "payment": "yes"}, {"month": "March", "invoice": "FL-1117", "name": "Larry Theroux", "cin": "XDJ96811481F", "agreement": "yes", "firstDay": "3/1/2026", "lastDay": "03/31/2026", "rate": 99.0, "total": 3069.0, "payment": "yes"}, {"month": "March", "invoice": "FL-1118", "name": "Garret Stromberg", "cin": "XDJ94925932D", "agreement": "yes", "firstDay": "3/1/2026", "lastDay": "03/24/2026", "rate": 99.0, "total": 2376.0, "payment": "yes"}, {"month": "March", "invoice": "FL-1119", "name": "Dirk Burton", "cin": "XDJ96907813C", "agreement": "yes", "firstDay": "3/1/2026", "lastDay": "03/31/2026", "rate": 99.0, "total": 4752.0, "payment": "yes"}, {"month": "March", "invoice": "", "name": "Jarrett Tanforan", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "March", "invoice": "FL-1120", "name": "Juan Salinas", "cin": "XDJ90916060A", "agreement": "yes", "firstDay": "3/1/2026", "lastDay": "03/31/2026", "rate": 99.0, "total": 4257.0, "payment": "yes"}, {"month": "March", "invoice": "", "name": "Vince Ilomin", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "March", "invoice": "", "name": "Don Ford", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "March", "invoice": "FL-1121", "name": "Mark Fisher", "cin": "XDJ97651351F", "agreement": "yes", "firstDay": "3/1/2026", "lastDay": "03/19/2026", "rate": 99.0, "total": 1881.0, "payment": "yes"}, {"month": "March", "invoice": "", "name": "Raymond Ambrose", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "March", "invoice": "FL-1125", "name": "Christian Sterling", "cin": "XDJ90274306D", "agreement": "yes", "firstDay": "2/25/2026", "lastDay": "02/28/2026", "rate": 99.0, "total": 3465.0, "payment": "yes"}, {"month": "March", "invoice": "", "name": "Shawn Weber", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "March", "invoice": "FL-1123", "name": "Don Rose", "cin": "XDJ99245441E", "agreement": "yes", "firstDay": "3/2/2026", "lastDay": "03/08/2026", "rate": 99.0, "total": 693.0, "payment": "yes"}, {"month": "March", "invoice": "FL-1124", "name": "Richard Davis", "cin": "94256406A", "agreement": "yes", "firstDay": "3/2/2026", "lastDay": "03/31/2026", "rate": 99.0, "total": 2970.0, "payment": "yes"}, {"month": "March", "invoice": "", "name": "Uzziah Allen", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "March", "invoice": "", "name": "Nathon Daskalos", "cin": "free for now", "agreement": "free for now", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "March", "invoice": "", "name": "Nikolas Russo", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "March", "invoice": "", "name": "David Garcia", "cin": "ref sent", "agreement": "y", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "March", "invoice": "", "name": "Robert Vilar", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "March", "invoice": "", "name": "Fernando Cruz", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "March", "invoice": "", "name": "Emilio Padilla", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "March", "invoice": "", "name": "Tiari Williams", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "March", "invoice": "", "name": "Tyrese Baker", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "March", "invoice": "", "name": "Jonathan Muela", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "March", "invoice": "inactive insurance", "name": "Christopher Hauenstein", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "March", "invoice": "", "name": "Dean Whittington", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "March", "invoice": "", "name": "Adam Westbrook", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "March", "invoice": "", "name": "Jason Gauthier", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "March", "invoice": "", "name": "Christopher Lee", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "March", "invoice": "", "name": "Gerald Herndon", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "March", "invoice": "", "name": "Jermaine Bowden", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "March", "invoice": "", "name": "Christopher Holden", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "March", "invoice": "", "name": "Jacob Hershey", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "March", "invoice": "", "name": "Varnell Hutchinson", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "April", "invoice": "", "name": "Rodney McNary", "cin": "FREE", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "April", "invoice": "", "name": "Jason Apted", "cin": "XDJ90684329E", "agreement": "yes", "firstDay": "4/1/2026", "lastDay": "04/28/2026", "rate": 99.0, "total": 2772.0, "payment": ""}, {"month": "April", "invoice": "", "name": "Jacob Swenor", "cin": "XDJ95340044A", "agreement": "yes", "firstDay": "4/1/2026", "lastDay": "04/30/2026", "rate": 99.0, "total": 2970.0, "payment": ""}, {"month": "April", "invoice": "", "name": "Jeremy Philips", "cin": "XDJ97640281C", "agreement": "yes", "firstDay": "4/1/2026", "lastDay": "04/30/2026", "rate": 99.0, "total": 2970.0, "payment": ""}, {"month": "April", "invoice": "", "name": "Robert Mayhood", "cin": "XDJ97165865C", "agreement": "yes", "firstDay": "4/1/2026", "lastDay": "04/30/2026", "rate": 99.0, "total": 2970.0, "payment": ""}, {"month": "April", "invoice": "FIXING INSURANCE", "name": "Adrian Scriven", "cin": "XDJ91468120C", "agreement": "FIXING INSURANCE", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "April", "invoice": "", "name": "Talian Adams", "cin": "XDJ92121670D", "agreement": "yes", "firstDay": "4/1/2026", "lastDay": "04/30/2026", "rate": 99.0, "total": 2970.0, "payment": ""}, {"month": "April", "invoice": "add 3/9-3/31", "name": "Cory Layton", "cin": "XDJ91909077F", "agreement": "yes", "firstDay": "4/1/2026", "lastDay": "04/30/2026", "rate": 99.0, "total": 0, "payment": "", "priorStart": "3/9/2026", "priorEnd": "3/31/2026", "priorDays": 23, "priorTotal": 0, "billingPeriods": [{"start": "3/9/2026", "end": "3/31/2026"}]}, {"month": "April", "invoice": "needs re-auth", "name": "Thomas Jacobson", "cin": "XDJ96739911F", "agreement": "yes", "firstDay": "4/1/2026", "lastDay": "04/21/2026", "rate": 99.0, "total": 2079.0, "payment": ""}, {"month": "April", "invoice": "", "name": "Christopher Beren", "cin": "XDJ98226581C", "agreement": "yes", "firstDay": "4/1/2026", "lastDay": "04/30/2026", "rate": 99.0, "total": 2970.0, "payment": ""}, {"month": "April", "invoice": "moving out?", "name": "Mario Reyes", "cin": "XDJ97870158C", "agreement": "yes", "firstDay": "4/1/2026", "lastDay": "04/23/2026", "rate": 99.0, "total": 2277.0, "payment": ""}, {"month": "April", "invoice": "", "name": "Christopher Moore", "cin": "XDJ98881670C", "agreement": "yes", "firstDay": "4/1/2026", "lastDay": "04/30/2026", "rate": 99.0, "total": 2970.0, "payment": ""}, {"month": "April", "invoice": "needs re-auth", "name": "Jeff Armstrong", "cin": "XDJ90559960A", "agreement": "yes", "firstDay": "4/1/2026", "lastDay": "04/30/2026", "rate": 99.0, "total": 2970.0, "payment": ""}, {"month": "April", "invoice": "", "name": "Anthony Regino", "cin": "MNL431W26733", "agreement": "yes", "firstDay": "4/1/2026", "lastDay": "04/30/2026", "rate": 99.0, "total": 2970.0, "payment": ""}, {"month": "April", "invoice": "", "name": "Keith Braley", "cin": "XDJ95456700A", "agreement": "yes", "firstDay": "4/1/2026", "lastDay": "04/30/2026", "rate": 99.0, "total": 2970.0, "payment": ""}, {"month": "April", "invoice": "", "name": "Mark Candelent", "cin": "XDJ96032700C", "agreement": "yes", "firstDay": "4/1/2026", "lastDay": "04/10/2026", "rate": 99.0, "total": 990.0, "payment": ""}, {"month": "April", "invoice": "", "name": "Joseph Smith", "cin": "XDJ91647890D", "agreement": "yes", "firstDay": "4/1/2026", "lastDay": "04/30/2026", "rate": 99.0, "total": 2970.0, "payment": ""}, {"month": "April", "invoice": "", "name": "Steven Barrera", "cin": "XDJ94014759A", "agreement": "yes", "firstDay": "4/1/2026", "lastDay": "04/30/2026", "rate": 99.0, "total": 2970.0, "payment": ""}, {"month": "April", "invoice": "last day: 4/7/2026", "name": "Larry Theroux", "cin": "XDJ96811481F", "agreement": "yes", "firstDay": "4/1/2026", "lastDay": "4/7/2026", "rate": 99.0, "total": 693.0, "payment": ""}, {"month": "April", "invoice": "", "name": "Dirk Burton", "cin": "XDJ96907813C", "agreement": "yes", "firstDay": "4/1/2026", "lastDay": "04/30/2026", "rate": 99.0, "total": 2970.0, "payment": ""}, {"month": "April", "invoice": "", "name": "Jarrett Tanforan", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "April", "invoice": "", "name": "Juan Salinas", "cin": "XDJ90916060A", "agreement": "yes", "firstDay": "4/1/2026", "lastDay": "04/30/2026", "rate": 99.0, "total": 2970.0, "payment": ""}, {"month": "April", "invoice": "last day 4/9/2026", "name": "Vince Ilomin", "cin": "ref sent", "agreement": "WAITING", "firstDay": "4/1/2026", "lastDay": "04/09/2026", "rate": 99.0, "total": 891.0, "payment": ""}, {"month": "April", "invoice": "last day 4/9/2026", "name": "Don Ford", "cin": "ref sent", "agreement": "WAITING", "firstDay": "4/1/2026", "lastDay": "04/09/2026", "rate": 99.0, "total": 891.0, "payment": ""}, {"month": "April", "invoice": "add 3/6-3/31", "name": "Raymond Ambrose", "cin": "XDJ91022281D", "agreement": "yes", "firstDay": "4/1/2026", "lastDay": "04/30/2026", "rate": 99.0, "total": 5544.0, "payment": "", "billingPeriods": [{"start": "3/6/2026", "end": "3/31/2026"}], "priorStart": "3/6/2026", "priorEnd": "3/31/2026", "priorTotal": 0}, {"month": "April", "invoice": "", "name": "Christian Sterling", "cin": "XDJ90274306D", "agreement": "yes", "firstDay": "4/1/2026", "lastDay": "04/30/2026", "rate": 99.0, "total": 2970.0, "payment": ""}, {"month": "April", "invoice": "", "name": "Shawn Weber", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "April", "invoice": "", "name": "Richard Davis", "cin": "XDJ94256406A", "agreement": "yes", "firstDay": "4/1/2026", "lastDay": "04/30/2026", "rate": 99.0, "total": 2970.0, "payment": ""}, {"month": "April", "invoice": "", "name": "Uzziah Allen", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "April", "invoice": "", "name": "Nathon Daskalos", "cin": "free for now", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "April", "invoice": "add 3/11-3/31", "name": "Nikolas Russo", "cin": "XDJ94219128A", "agreement": "yes", "firstDay": "4/1/2026", "lastDay": "04/30/2026", "rate": 99.0, "total": 5049.0, "payment": "", "billingPeriods": [{"start": "3/11/2026", "end": "3/31/2026"}], "priorStart": "3/11/2026", "priorEnd": "3/31/2026", "priorTotal": 0}, {"month": "April", "invoice": "FL-1127", "name": "David Garcia", "cin": "ref sent", "agreement": "y", "firstDay": "4/1/2026", "lastDay": "4/4/2026", "rate": 99.0, "total": 0, "payment": "", "billingPeriods": [{"start": "3/9/2026", "end": "3/31/2026"}, {"start": "4/20/2026", "end": "4/30/2026"}]}, {"month": "April", "invoice": "", "name": "Robert Vilar", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "April", "invoice": "", "name": "Fernando Cruz", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "April", "invoice": "", "name": "Emilio Padilla", "cin": "ref sent", "agreement": "WAITING", "firstDay": "4/1/2026", "lastDay": "4/30/2026", "rate": 99, "total": 0, "payment": "", "billingPeriods": [{"start": "3/18/2026", "end": "3/31/2026"}], "priorStart": "3/18/2026", "priorEnd": "3/31/2026", "priorTotal": 0}, {"month": "April", "invoice": "", "name": "Tiari Williams", "cin": "XDJ94502105A", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "April", "invoice": "", "name": "Tyrese Baker", "cin": "", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "April", "invoice": "", "name": "Jonathan Muela", "cin": "XDJ98812270E", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "April", "invoice": "", "name": "Christopher Hauenstein", "cin": "", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "April", "invoice": "", "name": "Dean Whittington", "cin": "XDJ95586061G", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "April", "invoice": "", "name": "Adam Westbrook", "cin": "XDJ90538970H", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "April", "invoice": "", "name": "Jason Gauthier", "cin": "XDJ95528573F", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "April", "invoice": "", "name": "Christopher Lee", "cin": "XDJ96080402F", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "April", "invoice": "", "name": "Gerald Herndon", "cin": "XDJ92909145F", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "April", "invoice": "", "name": "Jermaine Bowden", "cin": "XDJ94166010A", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "April", "invoice": "", "name": "Christopher Holden", "cin": "", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "April", "invoice": "", "name": "Jacob Hershey", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "April", "invoice": "FIXING INSURANCE", "name": "Varnell Hutchinson", "cin": "XDJ98146672D", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "April", "invoice": "", "name": "Daniel Hutchinson", "cin": "XDJ94082623A", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "April", "invoice": "", "name": "Matthew Matos", "cin": "", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "April", "invoice": "", "name": "Anthony Hill", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "April", "invoice": "", "name": "Jesse Lowrey", "cin": "XDJ90289480H", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "April", "invoice": "", "name": "Daniel Reed", "cin": "XDJ99762163C", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "April", "invoice": "", "name": "Israel Mendez", "cin": "", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "April", "invoice": "", "name": "Jeffrey Mouer", "cin": "XDJ99983869E", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "April", "invoice": "", "name": "David Fashinell", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "April", "invoice": "", "name": "Adonis Morgan", "cin": "ref sent", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "April", "invoice": "", "name": "Juan Villalpando", "cin": "XDJ95509186C", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "April", "invoice": "", "name": "Ignacio Fernando Madrid-Ortiz", "cin": "ref needed", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}, {"month": "April", "invoice": "", "name": "Daniel Knowlton", "cin": "ref needed", "agreement": "WAITING", "firstDay": "", "lastDay": "", "rate": 99, "total": 0, "payment": ""}];
 
@@ -1141,6 +1323,7 @@ function switchAppTab(tab) {
   document.getElementById('tab-invoices').classList.toggle('active', tab==='invoices');
   document.getElementById('tab-eligibility').classList.toggle('active', tab==='eligibility');
   document.getElementById('tab-referral').classList.toggle('active', tab==='referral');
+  document.getElementById('tab-subcontractors').classList.toggle('active', tab==='subcontractors');
   if (tab==='referral') setTimeout(loadReferralPDF, 100);
 
 }
@@ -1221,7 +1404,7 @@ function autoSync() {
   fetch(scriptURL, {
     method:'POST', mode:'no-cors',
     headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({action:'save', tracker:TRACKER, completed:COMPLETED, invoices:INVOICE_DATA_ARR, eligibility:ELIGIBILITY_DATA})
+    body: JSON.stringify({action:'save', tracker:TRACKER, completed:COMPLETED, invoices:INVOICE_DATA_ARR, eligibility:ELIGIBILITY_DATA, ph_invoices:PH_INVOICE_DATA_ARR, ph_eligibility:PH_ELIGIBILITY_DATA, ph_tracker:PH_TRACKER, ph_payments:PH_PAYMENTS})
   })
   .then(() => { markSaved(new Date().toISOString()); showToast('☁ Saved ' + ELIGIBILITY_DATA.length + ' eligibility patients'); })
   .catch(() => {});
@@ -1285,6 +1468,10 @@ function loadFromSheet(onDone) {
       }
       if (data.eligibility && data.eligibility.length>0) ELIGIBILITY_DATA = data.eligibility;
       if (data.referrals && data.referrals.length>0) REFERRAL_DRAFTS = data.referrals;
+      if (data.ph_invoices && data.ph_invoices.length>0) PH_INVOICE_DATA_ARR = data.ph_invoices;
+      if (data.ph_eligibility && data.ph_eligibility.length>0) PH_ELIGIBILITY_DATA = data.ph_eligibility;
+      if (data.ph_tracker && data.ph_tracker.length>0) PH_TRACKER = data.ph_tracker;
+      if (data.ph_payments) PH_PAYMENTS = data.ph_payments;
       markSaved(data.lastSaved);
       renderAgreements(); renderInvoices(); renderEligibility(); renderDrafts(); updateDraftSelect();
       const priorCount = (data.invoices||[]).filter(r=>r.priorStart).length;
@@ -1320,7 +1507,11 @@ function exportHTML() {
   html = html.replace(/let COMPLETED = \[[\ \S]*?\];/, 'let COMPLETED = ' + JSON.stringify(COMPLETED) + ';');
   html = html.replace(/let INVOICE_DATA_ARR = \[[\ \S]*?\];/, 'let INVOICE_DATA_ARR = ' + JSON.stringify(INVOICE_DATA_ARR) + ';');
   html = html.replace(/let ELIGIBILITY_DATA = \[[\ \S]*?\];/, 'let ELIGIBILITY_DATA = ' + JSON.stringify(ELIGIBILITY_DATA) + ';');
-  html = html.replace(/let scriptURL = .*?;/, "let scriptURL = '" + scriptURL.replace(/'/g,"\\'") + "';");
+  html = html.replace(/let PH_INVOICE_DATA_ARR = \[.*?\];/, 'let PH_INVOICE_DATA_ARR = ' + JSON.stringify(PH_INVOICE_DATA_ARR) + ';');
+  html = html.replace(/let PH_ELIGIBILITY_DATA = \[.*?\];/, 'let PH_ELIGIBILITY_DATA = ' + JSON.stringify(PH_ELIGIBILITY_DATA) + ';');
+  html = html.replace(/let PH_TRACKER = \[.*?\];/, 'let PH_TRACKER = ' + JSON.stringify(PH_TRACKER) + ';');
+  html = html.replace(/let PH_PAYMENTS = \{.*?\};/, 'let PH_PAYMENTS = ' + JSON.stringify(PH_PAYMENTS) + ';');
+  html = html.replace(/let scriptURL = .*?;/, "let scriptURL = '" + scriptURL.replace(/'/g,"\'") + "';");
   const now = new Date();
   const stamp = now.getFullYear() + '-' +
     String(now.getMonth()+1).padStart(2,'0') + '-' +
@@ -1956,7 +2147,8 @@ function confirmMarkPaid() {
 
 
 function getNextInvoiceNum() {
-  const allNums = INVOICE_DATA_ARR
+  // Scan BOTH FL and Phoenix Haven arrays to prevent duplicate invoice numbers
+  const allNums = [...INVOICE_DATA_ARR, ...PH_INVOICE_DATA_ARR]
     .map(r => r.invoice)
     .filter(inv => inv && /^FL-\d+$/.test(inv))
     .map(inv => parseInt(inv.replace('FL-', '')))
@@ -2466,7 +2658,7 @@ function autoSyncEligibility() {
     fetch(scriptURL, {
       method: 'POST', mode: 'no-cors',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'save', tracker: TRACKER, completed: COMPLETED, invoices: INVOICE_DATA_ARR, eligibility: ELIGIBILITY_DATA })
+      body: JSON.stringify({ action: 'save', tracker: TRACKER, completed: COMPLETED, invoices: INVOICE_DATA_ARR, eligibility: ELIGIBILITY_DATA, ph_invoices: PH_INVOICE_DATA_ARR, ph_eligibility: PH_ELIGIBILITY_DATA, ph_tracker: PH_TRACKER, ph_payments: PH_PAYMENTS })
     })
     .then(function() {
       markSaved(new Date().toISOString());
@@ -3688,6 +3880,13 @@ function closeInvoice(){
   if (badge) badge.parentNode.removeChild(badge);
 }
 
+// ── Global error trap (debug) ─────────────────────────────────────────────────
+window.onerror = function(msg, src, line, col, err) {
+  const d = document.getElementById('js-error-banner');
+  if (d) { d.style.display='block'; d.textContent = '⚠ JS Error: ' + msg + ' (line ' + line + ')'; }
+  return false;
+};
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 // Always use baked URL regardless of localStorage
 scriptURL = 'https://script.google.com/macros/s/AKfycbzPANrdXBSiX5bLSnUzyyO64D211dRibRa3WLEjba3LRDLvk_pHZzyYl3EcOSIgAOkadw/exec';
@@ -4043,6 +4242,732 @@ Patient was admitted to [Facility Name] on [Admission Date] to [Discharge Date] 
 
 }
 
+
+
+
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PHOENIX HAVEN (SUBCONTRACTORS) DASHBOARD
+// ══════════════════════════════════════════════════════════════════════════════
+
+const PH_RATE = 99;
+const PH_THEIR_RATE = 66;
+const PH_FL_RATE = 33;
+
+function switchPHTab(tab) {
+  phInnerTab = tab;
+  ['invoices','eligibility','agreements','payments'].forEach(t => {
+    const panel = document.getElementById('ph-panel-' + t);
+    if (panel) panel.style.display = (t === tab) ? '' : 'none';
+  });
+  document.querySelectorAll('.ph-inner-tab').forEach(btn => {
+    const isActive = btn.getAttribute('onclick').includes("'" + tab + "'");
+    btn.style.color = isActive ? '#2558a8' : 'var(--muted)';
+    btn.style.borderBottomColor = isActive ? '#2558a8' : 'transparent';
+  });
+  if (tab === 'eligibility') renderPHEligibility();
+  if (tab === 'agreements') renderPHAgreements();
+  if (tab === 'payments') renderPHPayments();
+}
+
+function getPHMonths() {
+  const months = [...new Set(PH_INVOICE_DATA_ARR.map(r => r.month).filter(Boolean))];
+  const order = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  return months.sort((a,b) => order.indexOf(a) - order.indexOf(b));
+}
+
+function renderPH() {
+  const months = getPHMonths();
+  if (!months.includes(phActiveMonth) && months.length > 0) phActiveMonth = months[months.length - 1];
+
+  // Month pills
+  const pillsEl = document.getElementById('ph-month-pills');
+  if (pillsEl) {
+    pillsEl.innerHTML = months.map(m => {
+      const mc = MONTH_COLORS[m] || {bg:'#e2e8f0',text:'#4a5568'};
+      const isActive = m === phActiveMonth;
+      return `<button class="pill${isActive?' active':''}" onclick="phActiveMonth='${m}';renderPH()" ${isActive?'':'style="background:'+mc.bg+';color:'+mc.text+';border-color:'+mc.bg+'"'}>${m}</button>`;
+    }).join('');
+  }
+
+  const monthLabel = document.getElementById('ph-active-month-label');
+  if (monthLabel) monthLabel.textContent = phActiveMonth;
+
+  // Stats
+  const rows = PH_INVOICE_DATA_ARR.filter(r => r.month === phActiveMonth);
+  let gross = 0, theirCut = 0, flPortion = 0, active = 0;
+  rows.forEach(r => {
+    const g = getPHDisplayTotal(r);
+    gross += g;
+    theirCut += Math.round(g * (PH_THEIR_RATE / PH_RATE));
+    flPortion += Math.round(g * (PH_FL_RATE / PH_RATE));
+    if (g > 0) active++;
+  });
+  const statsEl = document.getElementById('ph-stats-bar');
+  if (statsEl) statsEl.innerHTML = [
+    {label:'Gross (MasterCare)', val:'$'+gross.toLocaleString(), color:'#2558a8'},
+    {label:'Owed to Phoenix Haven', val:'$'+theirCut.toLocaleString(), color:'#c2460a'},
+    {label:'FL Portion', val:'$'+flPortion.toLocaleString(), color:'#1e6b3d'},
+    {label:'Billed patients', val:active, color:'var(--text)'},
+  ].map(s => `<div style="background:#f8fafc;border-radius:8px;padding:12px 16px;border:1px solid var(--border)">
+    <div style="font-size:11px;color:var(--muted);margin-bottom:4px">${s.label}</div>
+    <div style="font-size:20px;font-weight:500;color:${s.color}">${s.val}</div>
+  </div>`).join('');
+
+  // Render current inner tab
+  if (phInnerTab === 'invoices') renderPHInvoices();
+  else if (phInnerTab === 'eligibility') renderPHEligibility();
+  else if (phInnerTab === 'agreements') renderPHAgreements();
+  else if (phInnerTab === 'payments') renderPHPayments();
+}
+
+function getPHDays(r) {
+  if (!r.firstDay || !r.lastDay) return 0;
+  try {
+    const d1 = parseLocalDate(r.firstDay), d2 = parseLocalDate(r.lastDay);
+    if (isNaN(d1) || isNaN(d2)) return 0;
+    return Math.max(0, Math.round((d2 - d1) / 86400000) + 1);
+  } catch(e) { return 0; }
+}
+
+function getPHStatus(r) {
+  const p = r.payment||'', a=(r.agreement||'').toLowerCase(), inv=r.invoice||'';
+  if (r.cin==='FREE'||a==='free'||a.includes('free')) return 'free';
+  if (a.includes('not eligible')||a.includes('ineligible')) return 'ineligible';
+  if (p.includes('\u2713')||p.toLowerCase()==='yes') return 'paid';
+  if (inv.startsWith('FL-')&&p==='') return 'billed';
+  if (a.includes('fixing')||inv.toLowerCase().includes('fixing')||inv.toLowerCase().includes('re-auth')||inv.toLowerCase().includes('inactive')) return 'issue';
+  if (a.includes('waiting')||inv.toLowerCase().includes('waiting')) return 'waiting';
+  if (inv.startsWith('FL-')) return 'billed';
+  return 'waiting';
+}
+
+function phStatusDropdown(r, idx) {
+  const s = getPHStatus(r);
+  const opts = [
+    {v:'waiting',l:'Waiting',bg:'#fff4ee',color:'#c2460a',border:'#f5b48a'},
+    {v:'billed',l:'Invoiced',bg:'#edf5ff',color:'#2558a8',border:'#b0d4f8'},
+    {v:'paid',l:'\u2713 Paid',bg:'#eefbf3',color:'#1e6b3d',border:'#86e0aa'},
+    {v:'issue',l:'Needs attention',bg:'#fff0f0',color:'#a82828',border:'#fcc8c8'},
+    {v:'ineligible',l:'Not eligible',bg:'#f1f5f9',color:'#475569',border:'#e2e8f0'},
+    {v:'free',l:'Free',bg:'#f5f7fa',color:'#6a7d95',border:'#dde2ea'},
+  ];
+  const cur = opts.find(o=>o.v===s)||opts[0];
+  return `<select onchange="changePHStatus(${idx},this.value)" style="padding:3px 8px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid ${cur.border};background:${cur.bg};color:${cur.color};font-family:inherit;outline:none;max-width:130px">
+    ${opts.map(o=>`<option value="${o.v}" ${o.v===s?'selected':''}>${o.l}</option>`).join('')}
+  </select>`;
+}
+
+function changePHStatus(idx, val) {
+  const r = PH_INVOICE_DATA_ARR[idx];
+  if (val==='paid') { r.payment='\u2713 Paid'; }
+  else if (val==='billed') { r.payment=''; }
+  else if (val==='waiting') { r.payment=''; r.agreement='WAITING'; if(r.invoice&&!r.invoice.startsWith('FL-')) r.invoice=''; }
+  else if (val==='issue') { r.payment=''; r.agreement='FIXING INSURANCE'; }
+  else if (val==='ineligible') { r.agreement='not eligible'; r.payment=''; }
+  else if (val==='free') { r.cin='FREE'; r.agreement='FREE'; }
+  markUnsaved(); renderPH();
+}
+
+function renderPHInvoices() {
+  const q = (document.getElementById('ph-search')||{}).value||'';
+  const rows = PH_INVOICE_DATA_ARR.filter(r => r.month === phActiveMonth && (!q || r.name.toLowerCase().includes(q.toLowerCase())));
+  const tbody = document.getElementById('ph-invoice-body');
+  if (!tbody) return;
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="10" class="empty">No patients for ' + phActiveMonth + '. Use Copy to Next Month or Add Patient.</td></tr>'; return; }
+  tbody.innerHTML = rows.map((r, i) => {
+    const globalIdx = PH_INVOICE_DATA_ARR.indexOf(r);
+    // Use agreement-aware display total (mirrors FL invoice logic)
+    const displayTotal = getPHDisplayTotal(r);
+    const gross = displayTotal > 0 ? displayTotal : getPHDays(r) * PH_RATE;
+    const theirCut = Math.round(gross * (PH_THEIR_RATE / PH_RATE));
+    const flPortion = Math.round(gross * (PH_FL_RATE / PH_RATE));
+    const s = getPHStatus(r);
+    const hasInv = r.invoice && /^FL-\d+$/.test(r.invoice);
+    // Agreement status dot — reads PH_TRACKER
+    const agStatus = getPHAgreementStatus(r.name, r.cin, r.month);
+    const dotColor = agStatus==='active'?'#22c55e':agStatus==='expiring'?'#eab308':'#ef4444';
+    const dotGlow = agStatus==='active'?'rgba(34,197,94,0.6)':agStatus==='expiring'?'rgba(234,179,8,0.6)':'rgba(239,68,68,0.5)';
+    const dotTitle = agStatus==='active'?'Agreement active':agStatus==='expiring'?'Expires this month':'No agreement';
+    // Effective dates from agreement
+    const { firstDay: effFirst, lastDay: effLast } = getPHEffectiveDates(r);
+    const shownFirst = r.firstDay || effFirst || '';
+    const shownLast = r.lastDay || effLast || '';
+    return `<tr>
+      <td style="font-weight:500">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span title="${dotTitle}" style="width:9px;height:9px;border-radius:50%;flex-shrink:0;background:${dotColor};display:inline-block;box-shadow:0 0 4px ${dotGlow}"></span>
+          ${r.name||'—'}
+        </div>
+      </td>
+      <td><div style="display:flex;align-items:center;gap:4px">
+        <input type="text" value="${(r.cin||'').replace(/"/g,'&quot;')}" placeholder="—"
+          onchange="PH_INVOICE_DATA_ARR[${globalIdx}].cin=this.value;markUnsaved()"
+          style="font-family:'DM Mono',monospace;font-size:11px;border:1px solid transparent;border-radius:4px;padding:2px 5px;width:108px;background:transparent;outline:none"
+          onfocus="this.style.border='1px solid #bee3f8';this.style.background='#f0f7ff'"
+          onblur="this.style.border='1px solid transparent';this.style.background='transparent'">
+        <button onclick="event.stopPropagation();copyCIN(this.previousElementSibling.value)" title="Copy CIN" style="background:none;border:none;cursor:pointer;padding:2px 4px;border-radius:4px;font-size:12px;color:#94a3b8">⧉</button>
+      </div></td>
+      <td><input type="text" value="${r.invoice||''}" placeholder="—"
+        onchange="PH_INVOICE_DATA_ARR[${globalIdx}].invoice=this.value;markUnsaved();renderPH()"
+        style="font-size:12px;border:1px solid transparent;border-radius:4px;padding:2px 5px;width:80px;background:transparent;outline:none"
+        onfocus="this.style.border='1px solid #bee3f8';this.style.background='#f0f7ff'"
+        onblur="this.style.border='1px solid transparent';this.style.background='transparent'">
+        ${hasInv?'<button class="pencil-btn" onclick="openPHInvoice('+globalIdx+')" title="Generate invoice" style="margin-left:2px;color:#3d7a2e">🧾</button>':''}
+      </td>
+      <td>${gross > 0 ? Math.round(gross/99) : '—'}</td>
+      <td style="color:#2558a8">${gross > 0 ? '$'+gross.toLocaleString() : '—'}</td>
+      <td style="color:#c2460a">${gross > 0 ? '$'+theirCut.toLocaleString() : '—'}</td>
+      <td style="color:#1e6b3d;font-weight:500">${gross > 0 ? '$'+flPortion.toLocaleString() : '—'}</td>
+      <td><div style="display:flex;flex-direction:column;gap:2px">
+        <input type="text" value="${shownFirst}" placeholder="First day"
+          onchange="PH_INVOICE_DATA_ARR[${globalIdx}].firstDay=this.value;markUnsaved();renderPH()"
+          style="font-size:11px;border:1px solid transparent;border-radius:4px;padding:2px 5px;width:86px;background:transparent"
+          onfocus="this.style.border='1px solid #bee3f8';this.style.background='#f0f7ff'"
+          onblur="this.style.border='1px solid transparent';this.style.background='transparent'">
+        <input type="text" value="${shownLast}" placeholder="Last day"
+          onchange="PH_INVOICE_DATA_ARR[${globalIdx}].lastDay=this.value;markUnsaved();renderPH()"
+          style="font-size:11px;border:1px solid transparent;border-radius:4px;padding:2px 5px;width:86px;background:transparent"
+          onfocus="this.style.border='1px solid #bee3f8';this.style.background='#f0f7ff'"
+          onblur="this.style.border='1px solid transparent';this.style.background='transparent'">
+      </div></td>
+      <td>${phStatusDropdown(r, globalIdx)}</td>
+      <td><button onclick="removePHInvoiceRow(${globalIdx})" title="Remove" style="background:none;border:none;cursor:pointer;color:#d9534f;font-size:13px;padding:2px 6px">✕</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function removePHInvoiceRow(idx) {
+  if (!confirm('Remove ' + PH_INVOICE_DATA_ARR[idx].name + ' from this month?')) return;
+  PH_INVOICE_DATA_ARR.splice(idx, 1);
+  markUnsaved(); renderPH();
+}
+
+function addPHPatient() {
+  const name = prompt('Patient name:');
+  if (!name || !name.trim()) return;
+  PH_INVOICE_DATA_ARR.push({month: phActiveMonth, name: name.trim(), cin:'', invoice:'', agreement:'WAITING', firstDay:'', lastDay:'', rate:99, total:0, payment:''});
+  markUnsaved(); renderPH();
+  showToast('Patient added to ' + phActiveMonth);
+}
+
+// ── PH Assign Invoice Numbers ─────────────────────────────────────────────────
+function openPHAssignModal() {
+  const eligible = PH_INVOICE_DATA_ARR.filter(r => r.month===phActiveMonth && r.name && (!r.invoice||!r.invoice.startsWith('FL-')));
+  if (!eligible.length) { showToast('All patients already have invoice numbers!'); return; }
+  const nextNum = getNextInvoiceNum();
+  document.getElementById('ph-assign-month').textContent = phActiveMonth;
+  document.getElementById('ph-assign-start').textContent = 'FL-' + nextNum;
+  const list = document.getElementById('ph-assign-list');
+  list._eligible = eligible;
+  list.innerHTML = eligible.map((r,i) => `
+    <div style="padding:9px 12px;border-bottom:0.5px solid #f0f2f5;font-size:13px;font-weight:500;color:#0f2035;display:flex;align-items:center;justify-content:space-between">
+      <span>${r.name}</span>
+      <input type="checkbox" id="ph_ai_${i}" checked style="width:15px;height:15px;accent-color:#1c3455;cursor:pointer">
+    </div>`).join('');
+  document.getElementById('ph-assign-modal').style.display = 'flex';
+}
+function closePHAssignModal() { document.getElementById('ph-assign-modal').style.display='none'; }
+function confirmPHAssign() {
+  const list = document.getElementById('ph-assign-list');
+  const eligible = list._eligible;
+  let next = getNextInvoiceNum(), count = 0;
+  eligible.forEach((r,i) => {
+    const cb = document.getElementById('ph_ai_'+i);
+    if (cb && cb.checked) { r.invoice='FL-'+next; next++; count++; }
+  });
+  closePHAssignModal();
+  if (count>0) { markUnsaved(); showToast('\u2713 Assigned '+count+' invoice number'+(count>1?'s':'')); renderPH(); }
+}
+
+// ── PH Copy to Next Month ─────────────────────────────────────────────────────
+function openPHCopyModal() {
+  const allMonths = ['February','March','April','May','June','July','August','September','October','November','December'];
+  const curIdx = allMonths.indexOf(phActiveMonth);
+  const nextMonth = curIdx >= 0 && curIdx < allMonths.length-1 ? allMonths[curIdx+1] : null;
+  if (!nextMonth) { showToast('No next month available','error'); return; }
+  document.getElementById('ph-copy-next-month').textContent = nextMonth;
+  const rows = PH_INVOICE_DATA_ARR.filter(r => r.month === phActiveMonth && r.name);
+  const list = document.getElementById('ph-copy-list');
+  list._rows = rows; list._nextMonth = nextMonth;
+  list.innerHTML = rows.map((r,i) => `
+    <div style="padding:9px 12px;border-bottom:0.5px solid #f0f2f5;font-size:13px;font-weight:500;color:#0f2035;display:flex;align-items:center;justify-content:space-between">
+      <span>${r.name}</span>
+      <input type="checkbox" id="ph_cp_${i}" checked style="width:15px;height:15px;accent-color:#1c3455;cursor:pointer">
+    </div>`).join('');
+  document.getElementById('ph-copy-modal').style.display='flex';
+}
+function closePHCopyModal() { document.getElementById('ph-copy-modal').style.display='none'; }
+function confirmPHCopy() {
+  const list = document.getElementById('ph-copy-list');
+  const rows = list._rows, nextMonth = list._nextMonth;
+  let count = 0;
+  rows.forEach((r,i) => {
+    const cb = document.getElementById('ph_cp_'+i);
+    if (cb && cb.checked) {
+      const exists = PH_INVOICE_DATA_ARR.some(x => x.month===nextMonth && x.name===r.name);
+      if (!exists) { PH_INVOICE_DATA_ARR.push({...r, month:nextMonth, invoice:'', payment:'', firstDay:'', lastDay:'', total:0}); count++; }
+    }
+  });
+  closePHCopyModal();
+  if (count>0) { phActiveMonth=nextMonth; markUnsaved(); renderPH(); showToast('\u2713 Copied '+count+' patient'+(count>1?'s':'')+' to '+nextMonth); }
+}
+
+// ── PH Print All ──────────────────────────────────────────────────────────────
+function openPHPrintAllModal() {
+  const rows = PH_INVOICE_DATA_ARR.filter(r => r.month===phActiveMonth && r.invoice && /^FL-\d+$/.test(r.invoice));
+  if (!rows.length) { showToast('No invoiced patients this month','error'); return; }
+  document.getElementById('ph-print-month').textContent = phActiveMonth;
+  const list = document.getElementById('ph-print-list');
+  list._rows = rows;
+  list.innerHTML = rows.map((r,i) => `
+    <div style="padding:9px 12px;border-bottom:0.5px solid #f0f2f5;font-size:13px;color:#0f2035;display:flex;align-items:center;justify-content:space-between">
+      <span><strong>${r.invoice}</strong> — ${r.name}</span>
+      <input type="checkbox" id="ph_pr_${i}" checked style="width:15px;height:15px;accent-color:#1c3455;cursor:pointer">
+    </div>`).join('');
+  document.getElementById('ph-print-all-modal').style.display='flex';
+}
+function closePHPrintAllModal() { document.getElementById('ph-print-all-modal').style.display='none'; }
+function confirmPHPrintAll() {
+  const list = document.getElementById('ph-print-list');
+  const rows = list._rows;
+  let printed = 0;
+  rows.forEach((r,i) => {
+    const cb = document.getElementById('ph_pr_'+i);
+    if (cb && cb.checked) { const idx = PH_INVOICE_DATA_ARR.indexOf(r); openPHInvoice(idx); printed++; }
+  });
+  closePHPrintAllModal();
+}
+
+// openPHInvoice moved to pipeline section below
+
+// ── PH Eligibility ────────────────────────────────────────────────────────────
+function renderPHEligibility() {
+  const tbody = document.getElementById('ph-elig-body');
+  if (!tbody) return;
+  if (!PH_ELIGIBILITY_DATA.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty">No eligibility patients yet. Click + Add Patient.</td></tr>'; return; }
+  tbody.innerHTML = PH_ELIGIBILITY_DATA.map((r,i) => {
+    const statusColors = {active:{bg:'#eefbf3',color:'#1e6b3d',border:'#86e0aa'},inactive:{bg:'#fff0f0',color:'#a82828',border:'#fcc8c8'},pending:{bg:'#fff4ee',color:'#c2460a',border:'#f5b48a'}};
+    const sc = statusColors[r.status||'pending']||statusColors.pending;
+    const hist = (r.checkHistory||[]).slice(0,3).map(h => `<div style="font-size:10px;color:var(--muted)">${h.replace('|',' — ')}</div>`).join('');
+    return `<tr>
+      <td style="font-weight:500">${r.name||'—'}</td>
+      <td><div style="display:flex;align-items:center;gap:4px">
+        <input type="text" value="${(r.cin||'').replace(/"/g,'&quot;')}" placeholder="—"
+          onchange="PH_ELIGIBILITY_DATA[${i}].cin=this.value;markUnsaved();autoSyncPHEligibility()"
+          style="font-family:'DM Mono',monospace;font-size:11px;border:1px solid transparent;border-radius:4px;padding:2px 5px;width:108px;background:transparent"
+          onfocus="this.style.border='1px solid #bee3f8';this.style.background='#f0f7ff'"
+          onblur="this.style.border='1px solid transparent';this.style.background='transparent'">
+        <button onclick="copyCIN(this.previousElementSibling.value)" title="Copy" style="background:none;border:none;cursor:pointer;padding:2px 4px;font-size:12px;color:#94a3b8">⧉</button>
+      </div></td>
+      <td><select onchange="changePHEligStatus(${i},this.value)" style="padding:3px 8px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid ${sc.border};background:${sc.bg};color:${sc.color};font-family:inherit;outline:none">
+        <option value="active" ${r.status==='active'?'selected':''}>Active</option>
+        <option value="inactive" ${r.status==='inactive'?'selected':''}>Inactive</option>
+        <option value="pending" ${r.status==='pending'||!r.status?'selected':''}>Pending</option>
+      </select></td>
+      <td><div style="font-size:11px">${hist||'<span style="color:var(--muted)">No history</span>'}</div></td>
+      <td><input type="text" value="${(r.notes||'').replace(/"/g,'&quot;')}" placeholder="Notes"
+        onchange="PH_ELIGIBILITY_DATA[${i}].notes=this.value;markUnsaved();autoSyncPHEligibility()"
+        style="font-size:12px;border:1px solid transparent;border-radius:4px;padding:3px 8px;width:160px;background:transparent"
+        onfocus="this.style.border='1px solid #bee3f8';this.style.background='#f0f7ff'"
+        onblur="this.style.border='1px solid transparent';this.style.background='transparent'"></td>
+      <td><button onclick="removePHEligPatient(${i})" style="background:none;border:none;cursor:pointer;color:#d9534f;font-size:13px;padding:2px 6px">✕</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function changePHEligStatus(idx, val) {
+  PH_ELIGIBILITY_DATA[idx].status = val;
+  const today = new Date();
+  const dateStr = (today.getMonth()+1)+'/'+today.getDate()+'/'+today.getFullYear();
+  if (!PH_ELIGIBILITY_DATA[idx].checkHistory) PH_ELIGIBILITY_DATA[idx].checkHistory = [];
+  PH_ELIGIBILITY_DATA[idx].checkHistory = PH_ELIGIBILITY_DATA[idx].checkHistory.filter(e => !e.startsWith(dateStr));
+  PH_ELIGIBILITY_DATA[idx].checkHistory.unshift(dateStr+'|'+val);
+  markUnsaved(); renderPHEligibility(); autoSyncPHEligibility();
+}
+
+function removePHEligPatient(idx) {
+  if (!confirm('Remove '+PH_ELIGIBILITY_DATA[idx].name+' from Phoenix Haven eligibility?')) return;
+  PH_ELIGIBILITY_DATA.splice(idx,1);
+  markUnsaved(); renderPHEligibility(); autoSyncPHEligibility();
+}
+
+function openPHEligAddForm() { document.getElementById('ph-elig-add-form').style.display=''; }
+function confirmPHEligAdd() {
+  const name = document.getElementById('ph-el-name').value.trim();
+  if (!name) { showToast('Enter a patient name','error'); return; }
+  PH_ELIGIBILITY_DATA.push({name, cin:document.getElementById('ph-el-cin').value.trim(), status:document.getElementById('ph-el-status').value, notes:document.getElementById('ph-el-notes').value.trim(), checkHistory:[]});
+  document.getElementById('ph-elig-add-form').style.display='none';
+  ['ph-el-name','ph-el-cin','ph-el-notes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('ph-el-status').value='pending';
+  markUnsaved(); renderPHEligibility(); autoSyncPHEligibility(); showToast('Patient added');
+}
+
+function openPHWeeklyCheck() {
+  const list = document.getElementById('ph-weekly-list');
+  if (!PH_ELIGIBILITY_DATA.length) { showToast('No eligibility patients yet','error'); return; }
+  list.innerHTML = PH_ELIGIBILITY_DATA.map((r,i) => {
+    const sc = r.status==='active'?{bg:'#eefbf3',color:'#1e6b3d',border:'#86e0aa'}:r.status==='inactive'?{bg:'#fff0f0',color:'#a82828',border:'#fcc8c8'}:{bg:'#fff4ee',color:'#c2460a',border:'#f5b48a'};
+    return `<div style="padding:10px 14px;border-bottom:0.5px solid #f0f2f5;display:flex;align-items:center;justify-content:space-between;font-size:13px">
+      <span style="font-weight:500">${r.name}</span>
+      <select id="ph_wk_${i}" style="padding:3px 8px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid ${sc.border};background:${sc.bg};color:${sc.color};font-family:inherit;outline:none">
+        <option value="active" ${r.status==='active'?'selected':''}>Active</option>
+        <option value="inactive" ${r.status==='inactive'?'selected':''}>Inactive</option>
+        <option value="pending" ${!r.status||r.status==='pending'?'selected':''}>Pending</option>
+      </select></div>`;
+  }).join('');
+  document.getElementById('ph-weekly-modal').style.display='flex';
+}
+function closePHWeeklyModal() { document.getElementById('ph-weekly-modal').style.display='none'; }
+function confirmPHWeeklyCheck() {
+  const today = new Date();
+  const dateStr = (today.getMonth()+1)+'/'+today.getDate()+'/'+today.getFullYear();
+  let count = 0;
+  PH_ELIGIBILITY_DATA.forEach((r,i) => {
+    const sel = document.getElementById('ph_wk_'+i);
+    if (!sel) return;
+    r.status = sel.value;
+    if (!r.checkHistory) r.checkHistory = [];
+    r.checkHistory = r.checkHistory.filter(e => !e.startsWith(dateStr));
+    r.checkHistory.unshift(dateStr+'|'+sel.value);
+    count++;
+  });
+  closePHWeeklyModal(); markUnsaved(); renderPHEligibility(); autoSyncPHEligibility();
+  showToast('\u2713 '+count+' patient'+(count>1?'s':'')+' updated');
+}
+
+function openPHInactiveEmail() {
+  const inactive = PH_ELIGIBILITY_DATA.filter(r => r.status==='inactive');
+  if (!inactive.length) { showToast('No inactive patients','error'); return; }
+  const names = inactive.map(r => '- '+r.name+' ('+( r.cin||'no CIN')+')').join('\n');
+  const body = 'Hello,\n\nThe following Phoenix Haven patients have inactive insurance as of today:\n\n'+names+'\n\nPlease advise on next steps.\n\nThank you,\nFoundation Living';
+  window.location.href = 'mailto:admin@foundationliving.org?subject=Phoenix Haven — Inactive Insurance&body='+encodeURIComponent(body);
+}
+
+// ── PH auto-save eligibility ──────────────────────────────────────────────────
+let phEligSyncTimer = null;
+function autoSyncPHEligibility() {
+  clearTimeout(phEligSyncTimer);
+  phEligSyncTimer = setTimeout(function() {
+    if (!scriptURL) return;
+    fetch(scriptURL, {method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'save',tracker:TRACKER,completed:COMPLETED,invoices:INVOICE_DATA_ARR,eligibility:ELIGIBILITY_DATA,ph_invoices:PH_INVOICE_DATA_ARR,ph_eligibility:PH_ELIGIBILITY_DATA,ph_tracker:PH_TRACKER,ph_payments:PH_PAYMENTS})
+    }).then(()=>markSaved(new Date().toISOString())).catch(()=>{});
+  }, 800);
+}
+
+// ── PH Agreements ─────────────────────────────────────────────────────────────
+function renderPHAgreements() {
+  const tbody = document.getElementById('ph-agr-body');
+  if (!tbody) return;
+  if (!PH_TRACKER.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty">No agreements yet. Click + Add Agreement.</td></tr>'; return; }
+  const today = new Date(); today.setHours(0,0,0,0);
+  tbody.innerHTML = PH_TRACKER.map((r,i) => {
+    let badge = '';
+    if (r['Agreement Exp.'] && r['Agreement Exp.'] !== 'DISCHARGED EARLY' && r['Agreement Exp.'] !== 'WALKAWAY') {
+      try {
+        const exp = new Date(r['Agreement Exp.']); exp.setHours(0,0,0,0);
+        const diff = Math.round((exp-today)/86400000);
+        if (diff < 0) badge = '<span class="badge badge-red">Expired</span>';
+        else if (diff <= 31) badge = '<span class="badge badge-orange">Expires soon</span>';
+        else badge = '<span class="badge badge-green">Active</span>';
+      } catch(e) {}
+    } else if (r['Agreement Exp.']) badge = '<span class="badge badge-gray">'+r['Agreement Exp.']+'</span>';
+    else badge = '<span class="badge badge-orange">Pending</span>';
+    return `<tr>
+      <td style="font-weight:500">${r['Patient Name']||'—'}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px">${r.CIN||'—'}</td>
+      <td>${r['Auth Date']||'—'}</td>
+      <td>${r['6 Month Date']||'—'}</td>
+      <td>${badge}</td>
+      <td><input type="text" value="${(r.Comments||'').replace(/"/g,'&quot;')}" placeholder="Comments"
+        onchange="PH_TRACKER[${i}].Comments=this.value;markUnsaved()"
+        style="font-size:12px;border:1px solid transparent;border-radius:4px;padding:3px 8px;width:180px;background:transparent"
+        onfocus="this.style.border='1px solid #bee3f8';this.style.background='#f0f7ff'"
+        onblur="this.style.border='1px solid transparent';this.style.background='transparent'"></td>
+      <td><button onclick="PH_TRACKER.splice(${i},1);markUnsaved();renderPHAgreements()" style="background:none;border:none;cursor:pointer;color:#d9534f;font-size:13px;padding:2px 6px">✕</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function openPHAgreementAdd() { document.getElementById('ph-agr-add-form').style.display=''; }
+function confirmPHAgrAdd() {
+  const name = document.getElementById('ph-ag-name').value.trim();
+  if (!name) { showToast('Enter a patient name','error'); return; }
+  const authRaw = document.getElementById('ph-ag-auth').value;
+  const expRaw = document.getElementById('ph-ag-exp').value;
+  const authDate = authRaw ? new Date(authRaw) : null;
+  const expDate = expRaw ? new Date(expRaw) : null;
+  const sixMonth = authDate ? new Date(authDate.getTime()) : null;
+  if (sixMonth) sixMonth.setMonth(sixMonth.getMonth()+6);
+  const fmt = d => d ? (d.getMonth()+1)+'/'+d.getDate()+'/'+d.getFullYear() : null;
+  PH_TRACKER.push({'Patient Name':name,'CIN':document.getElementById('ph-ag-cin').value.trim(),'Auth Date':fmt(authDate)||'Agreement pending','6 Month Date':fmt(sixMonth)||null,'Agreement Exp.':expRaw||null,'Comments':document.getElementById('ph-ag-comments').value.trim()||null});
+  document.getElementById('ph-agr-add-form').style.display='none';
+  ['ph-ag-name','ph-ag-cin','ph-ag-auth','ph-ag-exp','ph-ag-comments'].forEach(id=>document.getElementById(id).value='');
+  markUnsaved(); renderPHAgreements(); showToast('Agreement added');
+}
+
+// ── PH Payments ───────────────────────────────────────────────────────────────
+function renderPHPayments() {
+  const el = document.getElementById('ph-payments-body');
+  if (!el) return;
+  const months = getPHMonths();
+  if (!months.length) { el.innerHTML = '<div class="empty">No data yet.</div>'; return; }
+  el.innerHTML = months.map(month => {
+    const rows = PH_INVOICE_DATA_ARR.filter(r => r.month===month);
+    const totalDays = rows.reduce((s,r)=>s+getPHDays(r),0);
+    const theirCut = totalDays * PH_THEIR_RATE;
+    const p = PH_PAYMENTS[month]||{};
+    const isPaid = !!p.paid;
+    return `<div style="background:#fff;border-radius:12px;border:1px solid var(--border);padding:16px 20px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div>
+          <div style="font-size:14px;font-weight:600;color:var(--text)">${month} 2026</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">Phoenix Haven owed: <strong style="color:#c2460a">$${theirCut.toLocaleString()}</strong></div>
+          ${p.paid ? '<div style="font-size:11px;color:#1e6b3d;margin-top:2px">Paid on '+p.date+'</div>' : ''}
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span class="badge ${isPaid?'badge-green':'badge-orange'}">${isPaid?'\u2713 Paid':'Unpaid'}</span>
+          ${!isPaid ? `<button class="btn btn-green" onclick="markPHPaid('${month}')">Mark as paid</button>` : `<button class="btn btn-gray" onclick="unmarkPHPaid('${month}')">Undo</button>`}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function markPHPaid(month) {
+  const today = new Date();
+  const dateStr = (today.getMonth()+1)+'/'+today.getDate()+'/'+today.getFullYear();
+  PH_PAYMENTS[month] = {paid:true, date:dateStr};
+  markUnsaved(); renderPHPayments(); showToast('\u2713 '+month+' marked as paid');
+}
+function unmarkPHPaid(month) {
+  delete PH_PAYMENTS[month];
+  markUnsaved(); renderPHPayments(); showToast('Payment undone for '+month);
+}
+
+// ── Initialize PH tab on load ─────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  // Render PH if navigated to on load
+  if (currentAppTab === 'subcontractors') renderPH();
+});
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PHOENIX HAVEN — AGREEMENT-TO-INVOICE PIPELINE
+// Mirrors the FL pipeline exactly but reads PH_TRACKER instead of TRACKER
+// ══════════════════════════════════════════════════════════════════════════════
+
+function phFindTrackerMatch(name, cin) {
+  const nameLower = (name||'').toLowerCase().trim();
+  const nameParts = nameLower.split(' ');
+  const lastName = nameParts[nameParts.length-1];
+  const cinClean = (cin||'').replace(/[^a-zA-Z0-9]/g,'').toLowerCase().replace(/^xdj/,'').replace(/^mnl/,'');
+  return PH_TRACKER.find(r => {
+    if (!r['Patient Name']) return false;
+    if (cinClean && r['CIN']) {
+      const tCin = (r['CIN']||'').replace(/[^a-zA-Z0-9]/g,'').toLowerCase().replace(/^xdj/,'').replace(/^mnl/,'');
+      if (tCin && tCin === cinClean) return true;
+    }
+    const tn = (r['Patient Name']||'').toLowerCase().trim();
+    if (tn === nameLower) return true;
+    const tp = tn.split(' ');
+    if (tp[tp.length-1] !== lastName) return false;
+    return nameParts[0].slice(0,3) === tp[0].slice(0,3);
+  });
+}
+
+function getPHAgreementStatus(name, cin, month) {
+  if (!name) return 'none';
+  const match = phFindTrackerMatch(name, cin);
+  if (!match) return 'none';
+  const exp = match['Agreement Exp.'];
+  if (!exp) return 'none';
+  if (exp === 'DISCHARGED EARLY' || exp === 'WALKAWAY') return 'none';
+  if (exp.toLowerCase().includes('pending')) return 'none';
+  if (exp.match(/^\d{4}-/)) {
+    const parts = exp.split('-');
+    const expDate = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]));
+    let refDate;
+    if (month) {
+      const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      const mIdx = monthNames.indexOf(month);
+      const year = mIdx >= 0 ? (mIdx < new Date().getMonth() - 2 ? new Date().getFullYear()+1 : new Date().getFullYear()) : new Date().getFullYear();
+      refDate = mIdx >= 0 ? new Date(year, mIdx, 1) : new Date();
+    } else {
+      refDate = new Date();
+    }
+    if (expDate < refDate) return 'none';
+    if (expDate.getMonth() === refDate.getMonth() && expDate.getFullYear() === refDate.getFullYear()) return 'expiring';
+    return 'active';
+  }
+  return 'none';
+}
+
+function getPHLastDayFromAgreement(name, cin, month) {
+  const match = phFindTrackerMatch(name, cin);
+  if (!match) return null;
+  const exp = match['Agreement Exp.'];
+  if (!exp || !exp.match(/^\d{4}-/)) return null;
+  const parts = exp.split('-');
+  const expDate = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]));
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const monthIdx = monthNames.indexOf(month);
+  if (monthIdx === -1) return null;
+  if (expDate.getMonth() === monthIdx && expDate.getFullYear() === new Date().getFullYear()) {
+    return (expDate.getMonth()+1) + '/' + expDate.getDate() + '/' + expDate.getFullYear();
+  }
+  return null;
+}
+
+function getPHAutoFirstDay(name, cin, month) {
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const monthIdx = monthNames.indexOf(month);
+  if (monthIdx === -1) return null;
+  const year = new Date().getFullYear();
+  const match = phFindTrackerMatch(name, cin);
+  if (match && match['Auth Date']) {
+    const authStr = formatDate(match['Auth Date']);
+    if (authStr && authStr !== '—') {
+      const parts = authStr.split('/');
+      if (parts.length === 3) {
+        const authMonth = parseInt(parts[0]) - 1;
+        const authYear = parseInt(parts[2].length === 2 ? '20' + parts[2] : parts[2]);
+        if (authMonth === monthIdx && authYear === year) {
+          return parts[0] + '/' + parts[1] + '/' + (parts[2].length === 2 ? '20' + parts[2] : parts[2]);
+        }
+      }
+    }
+  }
+  return (monthIdx + 1) + '/1/' + year;
+}
+
+function getPHAutoLastDay(name, cin, month) {
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const monthIdx = monthNames.indexOf(month);
+  if (monthIdx === -1) return null;
+  const year = new Date().getFullYear();
+  const lastDay = new Date(year, monthIdx + 1, 0).getDate();
+  const defaultLast = (monthIdx + 1) + '/' + lastDay + '/' + year;
+  const expiry = getPHLastDayFromAgreement(name, cin, month);
+  return expiry || defaultLast;
+}
+
+function getPHEffectiveDates(r) {
+  const s = getPHAgreementStatus(r.name, r.cin, r.month);
+  if (s !== 'active' && s !== 'expiring') return { firstDay: null, lastDay: null };
+  const first = r.firstDay || getPHAutoFirstDay(r.name, r.cin, r.month);
+  const ag = getPHLastDayFromAgreement(r.name, r.cin, r.month);
+  const last = ag || r.lastDay || getPHAutoLastDay(r.name, r.cin, r.month);
+  return { firstDay: first, lastDay: last };
+}
+
+function getPHDisplayTotal(r) {
+  if (r.total > 0) return r.total;
+  const rate = r.rate || 99;
+  const { firstDay, lastDay } = getPHEffectiveDates(r);
+  const parseDate = s => {
+    if (!s) return null;
+    const p = s.split('/');
+    if (p.length === 3) return new Date(parseInt(p[2].length===2?'20'+p[2]:p[2]), parseInt(p[0])-1, parseInt(p[1]));
+    return null;
+  };
+  const d1 = parseDate(firstDay), d2 = parseDate(lastDay);
+  const mainDays = (d1 && d2) ? Math.round((d2 - d1) / 86400000) + 1 : 0;
+  const mainTotal = mainDays > 0 ? mainDays * rate : 0;
+  const periodsTotal = (r.billingPeriods && r.billingPeriods.length > 0)
+    ? r.billingPeriods.reduce((sum, p) => sum + daysBetweenDates(p.start, p.end) * rate, 0)
+    : (r.priorTotal || 0);
+  return mainTotal + periodsTotal;
+}
+
+// Full invoice overlay for PH — identical format to FL invoices
+function openPHInvoice(idx) {
+  try {
+    const r = PH_INVOICE_DATA_ARR[idx];
+    if (!r) { showToast('Could not find patient data','error'); return; }
+
+    const rate = r.rate || 99;
+    const currentAmt = getPHDisplayTotal(r);
+    const grandTotal = currentAmt;
+    const dueDate = r.firstDay ? addDays(r.firstDay, 30) : '—';
+
+    // Build billing rows (same multi-period logic as FL)
+    const allRows = (() => {
+      const rows = [];
+      const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      function getMonthLabel(dateStr) {
+        const p = dateStr.split('/');
+        return p.length === 3 ? (monthNames[parseInt(p[0])-1] || '') : '';
+      }
+      function getSortDate(dateStr) {
+        const p = dateStr.split('/');
+        return p.length === 3 ? new Date(parseInt(p[2]), parseInt(p[0])-1, parseInt(p[1])) : new Date(0);
+      }
+      const periods = r.billingPeriods && r.billingPeriods.length > 0
+        ? r.billingPeriods
+        : (r.priorStart ? [{ start: r.priorStart, end: r.priorEnd }] : []);
+      periods.forEach(p => {
+        const days = daysBetweenDates(p.start, p.end);
+        rows.push({ dateStr: fmtDate(p.start) + ' \u2013 ' + fmtDate(p.end), monthLabel: getMonthLabel(p.start), days, amt: days * rate, sortDate: getSortDate(p.start) });
+      });
+      const { firstDay: fd, lastDay: ld } = getPHEffectiveDates(r);
+      if (fd && ld) {
+        const alreadyCovered = periods.some(p => p.start === fd && p.end === ld);
+        if (!alreadyCovered) {
+          const days = daysBetweenDates(fd, ld);
+          rows.push({ dateStr: fmtDate(fd) + ' \u2013 ' + fmtDate(ld), monthLabel: getMonthLabel(fd), days, amt: days * rate, sortDate: getSortDate(fd) });
+        }
+      }
+      rows.sort((a,b) => a.sortDate - b.sortDate);
+      return rows.map(row =>
+        '<tr><td>Short-Term Post-Hospitalization Housing</td>' +
+        '<td>' + (row.monthLabel ? '<span style=\"font-size:10px;background:#e8f0fe;color:#1c3455;border-radius:4px;padding:1px 6px;margin-right:6px\">' + row.monthLabel + '</span>' : '') + row.dateStr + '</td>' +
+        '<td style=\"text-align:center\">' + row.days + '</td>' +
+        '<td style=\"text-align:center\">$' + rate + '</td>' +
+        '<td>$' + row.amt.toLocaleString() + '.00</td></tr>'
+      ).join('');
+    })();
+
+    document.getElementById('inv-toolbar-title').textContent = (r.invoice||'Draft') + ' \u2014 ' + r.name + ' (Phoenix Haven)';
+    document.getElementById('invoice-body').innerHTML =
+      '<div class=\"inv-header\">' +
+        '<div class=\"inv-logo\"><div class=\"inv-logo-name\">Foundation Living</div>' +
+        '<div class=\"inv-logo-sub\">531 Eureka Avenue</div>' +
+        '<div class=\"inv-logo-sub\">Lodi, CA 95240</div>' +
+        '<div class=\"inv-logo-sub\">admin@foundationliving.org</div></div>' +
+        '<div class=\"inv-title\"><h1 style=\"margin-bottom:10px\">Invoice</h1>' +
+        '<div class=\"inv-meta\">Invoice #: <strong>' + (r.invoice||'Pending') + '</strong><br>Date: <strong>' + fmtDate(r.firstDay) + '</strong><br>Due: <strong>' + dueDate + '</strong><br>Amount due: <strong style=\"color:#3d7a2e\">$' + grandTotal.toLocaleString() + '.00</strong></div>' +
+        '</div></div>' +
+      '<div class=\"inv-addresses\"><div><div class=\"inv-address-label\">Bill to</div><div class=\"inv-address-name\">MasterCare</div><div class=\"inv-address-detail\">1700 I Street, Suite 210<br>Sacramento, CA 95811<br>billing@mastercareplan.com</div></div></div>' +
+      '<div style=\"background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;margin-bottom:16px;display:flex;gap:32px\"><div><div style=\"font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px\">Patient</div><div style=\"font-size:13px;font-weight:600;color:#1a1f2e\">' + r.name + '</div></div><div><div style=\"font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px\">CIN</div><div style=\"font-size:13px;font-weight:500;color:#1a1f2e;font-family:monospace\">' + (r.cin||'\u2014') + '</div></div><div><div style=\"font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px\">Services</div><div style=\"font-size:13px;font-weight:500;color:#1a1f2e\">Short-Term Post-Hospitalization Housing</div></div></div>' +
+      '<table class=\"inv-table\"><thead><tr>' +
+        '<th style=\"width:22%\">Description</th>' +
+        '<th style=\"width:28%\">Dates</th>' +
+        '<th style=\"width:10%;text-align:center\">Days</th>' +
+        '<th style=\"width:12%;text-align:center\">Daily rate</th>' +
+        '<th style=\"width:14%\">Amount</th>' +
+      '</tr></thead><tbody>' +
+      allRows +
+      '<tr><td colspan=\"4\" style=\"text-align:right;padding-right:16px;font-size:12px;color:#6b7589\">Tax</td><td style=\"font-size:12px;color:#6b7589\">$0.00</td></tr>' +
+      '<tr class=\"total-row\"><td colspan=\"4\" style=\"text-align:right;padding-right:16px\">Total due</td><td style=\"font-size:12px\">$' + grandTotal.toLocaleString() + '.00</td></tr>' +
+      '</tbody></table>' +
+      '<div class=\"inv-notes\"><div class=\"inv-notes-label\">Notes / Terms</div>Services provided: Short-term post-hospitalization housing<br>Payment due within 30 days of invoice date</div>' +
+      '<div class=\"inv-footer\">Please send payment to: Foundation Living \u00b7 531 Eureka Avenue, Lodi CA 95240</div>';
+
+    const nameParts = (r.name||'').split(' ');
+    const nameShort = nameParts.length>1 ? nameParts[0][0]+nameParts[nameParts.length-1] : r.name;
+    const monthAbbr = (r.month||'').slice(0,3);
+    document.title = (r.invoice||'Draft') + '_' + nameShort + '_' + monthAbbr + '26_PH';
+
+    const ov = document.getElementById('invoice-overlay');
+    document.body.appendChild(ov);
+    ov.setAttribute('style','display:flex !important;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.5);align-items:center;justify-content:center');
+  } catch(err) { alert('Invoice error: ' + err.message); }
+}
+
+
 </script>
 
 
@@ -4140,10 +5065,7 @@ function printReferralPDF() {
   URL.revokeObjectURL(url);
   showToast('✓ PDF downloaded — open to fill out and print');
 }
-</script>
-
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</script><script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <script>
 </script>
