@@ -62,6 +62,7 @@ body{font-family:'DM Sans',sans-serif;background:linear-gradient(160deg,#eef2f8 
 .table-wrap{overflow-x:auto;overflow-y:auto;max-height:60vh}
 table{width:100%;border-collapse:collapse;font-size:13px}
 th{text-align:left;padding:10px 12px;font-size:10.5px;font-weight:600;color:#7a8fa8;text-transform:uppercase;letter-spacing:0.07em;background:linear-gradient(90deg,#d6e8f5,#ddeaf8);border-bottom:1px solid #c0d4e8;white-space:nowrap;position:sticky;top:0;z-index:10}
+#ph-inv-table th, #ph-ag-table th{background:#fef3c7 !important;color:#78350f !important;border-bottom:1px solid #f0d080 !important}
 td{padding:11px 12px;border-bottom:1px solid rgba(220,228,238,0.5);color:var(--text);vertical-align:middle;transition:background 0.1s}
 tr:hover td{background:rgba(240,247,237,0.4)} tr:hover .discharge-btn{opacity:1 !important}
 .badge{display:inline-block;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:500;white-space:nowrap;letter-spacing:0.01em}
@@ -391,7 +392,6 @@ tr:hover .pencil-btn{opacity:1}
 
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
 <div id="js-error-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;background:#a82828;color:#fff;font-size:13px;font-weight:500;padding:10px 20px;font-family:monospace"></div>
@@ -400,7 +400,6 @@ tr:hover .pencil-btn{opacity:1}
     <div style="width:56px;height:56px;background:linear-gradient(135deg,#3d7a2e,#2d6022);border-radius:14px;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:24px">🔒</div>
     <div style="font-size:20px;font-weight:700;color:#1a2a3a;margin-bottom:4px">Foundation Living</div>
     <div style="font-size:13px;color:#6b7589;margin-bottom:24px">Management Dashboard</div>
-    <div style="font-size:11px;color:#94a3b8;margin-bottom:8px;margin-top:-16px">Admin: full access &nbsp;|&nbsp; Staff: view + limited edit</div>
     <input type="password" id="pw-input" placeholder="Enter password" 
       onkeydown="if(event.key==='Enter')checkPassword()"
       style="width:100%;padding:11px 14px;font-size:14px;border:1.5px solid #e2e8f0;border-radius:8px;outline:none;font-family:inherit;box-sizing:border-box;margin-bottom:8px">
@@ -413,18 +412,15 @@ tr:hover .pencil-btn{opacity:1}
 
 <script>
 function checkPassword() {
-  const input = document.getElementById('pw-input').value.trim();
-  if (input === '5344') {
-    // Admin login
+  const input = document.getElementById('pw-input').value;
+  const hash = Array.from(input).reduce((h, c) => (Math.imul(31, h) + c.charCodeAt(0)) | 0, 0);
+  if (hash === 1629598) {
     document.getElementById('password-screen').style.display = 'none';
-    sessionStorage.setItem('fl_auth', 'admin');
-    window._isAdmin = true;
-  } else if (input === '9099') {
-    // Staff login
+    sessionStorage.setItem('fl_auth', 'owner');
+  } else if (hash === 2075765380) {
     document.getElementById('password-screen').style.display = 'none';
-    sessionStorage.setItem('fl_auth', 'staff');
-    window._isAdmin = false;
-    enableStaffMode();
+    sessionStorage.setItem('fl_auth', 'partner');
+    enablePartnerMode();
   } else {
     document.getElementById('pw-error').textContent = 'Incorrect password. Try again.';
     document.getElementById('pw-input').value = '';
@@ -432,54 +428,35 @@ function checkPassword() {
   }
 }
 
-function enableStaffMode() {
-  window._staffModeActive = true;
-
-  // Inject CSS that keeps everything VISIBLE but blocks all interaction
-  var style = document.createElement('style');
-  style.id = 'staff-mode-css';
+function enablePartnerMode() {
+  const style = document.createElement('style');
+  style.id = 'partner-mode-css';
   style.textContent = `
-    /* Block ALL clicking and typing on agreements and invoices */
-    #tab-agreements td, #tab-invoices td {
-      pointer-events: none !important;
-      user-select: text !important;
-    }
-    /* Keep search, filters, month pills clickable */
-    #tab-agreements .search-box,
-    #tab-agreements .filter-select,
-    #tab-agreements .month-pills,
-    #tab-agreements .pill,
-    #tab-invoices .search-box,
-    #tab-invoices .filter-select,
-    #tab-invoices .month-pills,
-    #tab-invoices .pill {
-      pointer-events: auto !important;
-    }
-    /* Hide add/edit buttons and forms */
     #tab-agreements .section-header .btn,
     #tab-invoices .section-header .btn,
-    #tab-agreements .add-row-form,
-    #tab-invoices .add-row-form {
-      display: none !important;
-    }
-    /* Hide discharge and delete buttons */
+    #tab-eligibility .section-header .btn,
+    #tab-agreements .pencil-btn,
+    #tab-invoices .pencil-btn,
+    #tab-invoices td button,
     #tab-agreements td button,
-    #tab-invoices td button {
-      display: none !important;
-    }
-    /* Remove text cursor from editable cells so it looks read-only */
+    #tab-eligibility td button,
+    #sync-btn,
+    button[onclick*="exportHTML"],
+    #undo-global-btn { pointer-events: none !important; cursor: default !important; }
     #tab-agreements td [contenteditable],
-    #tab-invoices td [contenteditable] {
-      cursor: default !important;
-      outline: none !important;
-    }
-    /* Hide unsaved banner */
+    #tab-invoices td [contenteditable],
+    #tab-eligibility td [contenteditable],
+    #tab-agreements td input,
+    #tab-invoices td input,
+    #tab-eligibility td input,
+    #tab-agreements td select,
+    #tab-eligibility td select { pointer-events: none !important; }
+    .month-pills .pill, .search-box, .filter-select { pointer-events: auto !important; opacity: 1 !important; }
     .unsaved-banner { display: none !important; }
-    /* Staff View badge */
     .header-brand::after {
-      content: 'Staff View';
-      background: rgba(255,200,50,0.2);
-      color: #f0c040;
+      content: 'View Only';
+      background: rgba(255,255,255,0.15);
+      color: #93b8d4;
       font-size: 10px;
       font-weight: 600;
       padding: 2px 8px;
@@ -489,43 +466,8 @@ function enableStaffMode() {
     }
   `;
   document.head.appendChild(style);
-
-  // After tables render, strip contenteditable so cells truly can't be edited
-  function stripEditable() {
-    document.querySelectorAll(
-      '#tab-agreements td [contenteditable], #tab-invoices td [contenteditable]'
-    ).forEach(function(el) {
-      el.removeAttribute('contenteditable');
-    });
-  }
-
-  // Run on load and after every possible render
-  window.addEventListener('load', stripEditable);
-  [300, 800, 1500, 3000].forEach(function(t) { setTimeout(stripEditable, t); });
-
-  // Patch renderAgreements and renderInvoices to always strip after rendering
-  var _origRenderAg = window.renderAgreements;
-  var _origRenderInv = window.renderInvoices;
-  window.addEventListener('load', function() {
-    if (typeof renderAgreements === 'function') {
-      var orig = renderAgreements;
-      renderAgreements = function() { orig.apply(this, arguments); stripEditable(); };
-    }
-    if (typeof renderInvoices === 'function') {
-      var orig2 = renderInvoices;
-      renderInvoices = function() { orig2.apply(this, arguments); stripEditable(); };
-    }
-  });
 }
 
-function blockStaffEdits() {
-  if (!window._staffModeActive) return;
-  document.querySelectorAll(
-    '#tab-agreements td [contenteditable], #tab-invoices td [contenteditable]'
-  ).forEach(function(el) {
-    el.removeAttribute('contenteditable');
-  });
-}
 function enablePartnerMode() {
   // Add partner mode stylesheet
   const style = document.createElement('style');
@@ -588,17 +530,11 @@ function enablePartnerMode() {
 
 // Check if already authenticated this session
 const authState = sessionStorage.getItem('fl_auth');
-if (authState === 'admin' || authState === 'owner' || authState === '1') {
+if (authState === 'owner' || authState === '1') {
   document.getElementById('password-screen').style.display = 'none';
-  window._isAdmin = true;
-} else if (authState === 'staff') {
-  document.getElementById('password-screen').style.display = 'none';
-  window._isAdmin = false;
-  if (typeof enableStaffMode === 'function') enableStaffMode();
 } else if (authState === 'partner') {
   document.getElementById('password-screen').style.display = 'none';
-  window._isAdmin = false;
-  if (typeof enablePartnerMode === 'function') enablePartnerMode();
+  enablePartnerMode();
 }
 </script>
 
@@ -641,6 +577,8 @@ if (authState === 'admin' || authState === 'owner' || authState === '1') {
   <button class="app-tab" onclick="switchAppTab('referral');renderDrafts();updateDraftSelect();">Referral Dashboard</button>
   <button class="app-tab" onclick="switchAppTab('subcontractors');renderPH();renderPHAgreements();">Subcontractors<span id="ph-ref-needed-badge" style="display:none;background:rgba(255,255,255,0.9);color:#1c2f4a;border:none;border-radius:10px;font-size:10px;font-weight:700;padding:1px 6px;margin-left:6px;vertical-align:middle"></span></button>
 </div>
+
+<!-- Subcontractor Tab Banner -->
 
 <!-- Unsaved Banner -->
 <div class="unsaved-banner" id="unsaved-banner">
@@ -946,7 +884,7 @@ if (authState === 'admin' || authState === 'owner' || authState === '1') {
           </div>
 
           <div class="table-wrap">
-            <table>
+            <table id="ph-inv-table">
               <thead id="ph-inv-thead"></thead>
               <tbody id="ph-invoice-body"></tbody>
             </table>
@@ -1035,7 +973,7 @@ if (authState === 'admin' || authState === 'owner' || authState === '1') {
           </div>
 
           <div class="table-wrap">
-            <table>
+            <table id="ph-ag-table">
               <thead id="ph-ag-thead"></thead>
               <tbody id="ph-agr-body"></tbody>
             </table>
@@ -2181,7 +2119,6 @@ function saveAgExpField(idx, val) {
 
 
 function dischargePatient(idx) {
-  if (window._staffModeActive) return;
   const name = TRACKER[idx]['Patient Name'] || 'this patient';
   if (!confirm('Move ' + name + ' to Completed?')) return;
   saveUndoState('ag');
@@ -2196,7 +2133,6 @@ function dischargePatient(idx) {
 }
 
 function saveAgField(idx, field, val) {
-  if (window._staffModeActive) return;
   const clean = val.trim();
   const data = currentAgTab === 'active' ? TRACKER : COMPLETED;
   if (data[idx]) {
@@ -2205,23 +2141,6 @@ function saveAgField(idx, field, val) {
     renderAgreements();
   }
 }
-
-function staffNotify(actionName) {
-  if (typeof scriptURL !== 'undefined' && scriptURL) {
-    var timestamp = new Date().toLocaleString();
-    fetch(scriptURL, {
-      method: 'POST', mode: 'no-cors',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        action: 'notify',
-        email: 'admin@foundationliving.org',
-        subject: 'Foundation Living Dashboard - Staff Edit Alert',
-        message: 'A staff member edited protected data.\nAction: ' + actionName + '\nTime: ' + timestamp
-      })
-    }).catch(function(){});
-  }
-}
-
 
 
 function sortByAgreement(arr) {
@@ -2360,7 +2279,6 @@ function renderAgreements() {
     ${currentAgTab==='active' ? `<td style="width:90px"><button onclick="dischargePatient(${ri})" style="padding:3px 7px;font-size:10px;font-weight:500;border-radius:5px;cursor:pointer;background:#fff0f0;color:#a82828;border:1px solid #fcc8c8;font-family:inherit;white-space:nowrap">→ Dc</button></td>` : ''}
   </tr>`;
 }).join('');
-  if (window._staffModeActive) blockStaffEdits();
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -2444,7 +2362,6 @@ function removeInvoicePatient(idx) {
 }
 
 function addPatient() {
-  if (window._staffModeActive) return;
   saveUndoState('inv');
   const name = document.getElementById('f-name').value.trim();
   if (!name) { showToast('Patient name is required', 'error'); return; }
@@ -3712,62 +3629,22 @@ function printInvoicePDF() {
   const fi = parts[0] ? parts[0][0].toUpperCase() : 'X';
   const lastName = parts.length > 1 ? parts[parts.length-1] : parts[0];
 
+  // Use activeMonth instead of current date
   const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
   const shortMonths = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const monthIdx = monthNames.indexOf(activeMonth);
   const monthStr = monthIdx !== -1 ? shortMonths[monthIdx] : shortMonths[new Date().getMonth()];
   const now = new Date();
   const year = String(now.getFullYear()).slice(2);
-  const filename = invNum + '_' + fi + lastName + '_' + monthStr + year + '.pdf';
+  const filename = invNum + '_' + fi + lastName + '_' + monthStr + year;
 
-  // Use html2pdf to auto-download if available, else fall back to print
-  const invoiceBody = document.getElementById('invoice-body');
-  if (typeof html2pdf !== 'undefined' && invoiceBody) {
-    showToast('⬇ Downloading: ' + filename);
-    const toolbar = document.querySelector('.invoice-toolbar');
-    if (toolbar) toolbar.style.display = 'none';
-
-    const opt = {
-      margin:       [10, 10, 10, 10],
-      filename:     filename,
-      image:        { type: 'jpeg', quality: 0.98 },
-      html2canvas:  { scale: 2, useCORS: true, logging: false },
-      jsPDF:        { unit: 'mm', format: 'letter', orientation: 'portrait' }
-    };
-
-    html2pdf().set(opt).from(invoiceBody).save().then(function() {
-      if (toolbar) toolbar.style.display = '';
-      showToast('✓ PDF downloaded: ' + filename);
-
-      // Show downloaded badge in toolbar
-      const toolbarTitle = document.getElementById('inv-toolbar-title');
-      const existingBadge = document.getElementById('printed-badge');
-      if (existingBadge) existingBadge.remove();
-      if (toolbarTitle) {
-        const badge = document.createElement('span');
-        badge.id = 'printed-badge';
-        badge.textContent = '✓ PDF downloaded — click Close to continue';
-        badge.style.cssText = 'background:#1e6b3d;color:#fff;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:500;margin-left:10px;animation:pulse 1.5s infinite';
-        toolbarTitle.appendChild(badge);
-      }
-    }).catch(function(err) {
-      if (toolbar) toolbar.style.display = '';
-      console.error('html2pdf error:', err);
-      // Fallback to print dialog
-      printInvoicePDF_fallback(filename);
-    });
-    return;
-  }
-
-  // Fallback: original print dialog method
-  printInvoicePDF_fallback(filename);
-}
-
-function printInvoicePDF_fallback(filename) {
+  // Hide everything except invoice overlay by moving overlay to body and hiding rest
   const ov = document.getElementById('invoice-overlay');
   const modal = document.getElementById('invoice-print-wrap');
   const toolbar = document.querySelector('.invoice-toolbar');
+  const invoiceBody = document.getElementById('invoice-body');
 
+  // Store original styles
   const origOvStyle = ov.getAttribute('style');
   const origModalMaxH = modal.style.maxHeight;
   const origModalOverflow = modal.style.overflow;
@@ -3775,6 +3652,7 @@ function printInvoicePDF_fallback(filename) {
   const origModalRadius = modal.style.borderRadius;
   const origModalShadow = modal.style.boxShadow;
 
+  // Hide all body children except overlay
   const bodyChildren = Array.from(document.body.children);
   bodyChildren.forEach(el => {
     if (el !== ov) {
@@ -3783,6 +3661,7 @@ function printInvoicePDF_fallback(filename) {
     }
   });
 
+  // Style overlay for printing
   ov.style.cssText = 'display:block !important;position:static !important;background:white !important;z-index:1 !important;width:100% !important;';
   modal.style.maxHeight = 'none';
   modal.style.overflow = 'visible';
@@ -3800,6 +3679,7 @@ function printInvoicePDF_fallback(filename) {
     window.print();
     document.title = oldTitle;
 
+    // Restore everything
     bodyChildren.forEach(el => {
       if (el !== ov) el.style.display = el._origDisplay || '';
     });
@@ -3812,6 +3692,7 @@ function printInvoicePDF_fallback(filename) {
     modal.style.borderRadius = origModalRadius;
     if (toolbar) toolbar.style.display = '';
 
+    // Show "printed" banner in toolbar
     const toolbarTitle = document.getElementById('inv-toolbar-title');
     if (toolbarTitle && !document.getElementById('printed-badge')) {
       const badge = document.createElement('span');
@@ -4409,7 +4290,6 @@ function renderInvoices() {
         onmouseout="this.style.background='none'">🗑</button>
     </td>
   </tr>`).join('');
-  if (window._staffModeActive) blockStaffEdits();
 }
 
 // ── Prior Period ──────────────────────────────────────────────────────────────
@@ -4674,7 +4554,6 @@ function findInvoiceIdx(name, month) {
 }
 
 function openInvoice(dataIdx) {
-  if (window._staffModeActive) return;
   try {
     const r = INVOICE_DATA_ARR[dataIdx];
     if (!r) { showToast('Could not find patient data', 'error'); return; }
@@ -5321,16 +5200,16 @@ function renderPHInvoices() {
     return true;
   });
   const thead=document.getElementById('ph-inv-thead');
-  if (thead) thead.innerHTML=`<tr>
-    <th style="width:10%">Month</th>
-    <th style="width:13%">Invoice #</th>
-    <th style="width:18%">Patient name</th>
-    <th style="width:13%">CIN</th>
-    <th style="width:10%">First day</th>
-    <th style="width:10%">Last day</th>
-    <th style="width:7%">Rate</th>
-    <th style="width:10%">Amount</th>
-    <th style="width:9%">Status</th>
+  if (thead) thead.innerHTML=`<tr style="background:#fef3c7">
+    <th style="width:10%;color:#78350f">Month</th>
+    <th style="width:13%;color:#78350f">Invoice #</th>
+    <th style="width:18%;color:#78350f">Patient name</th>
+    <th style="width:13%;color:#78350f">CIN</th>
+    <th style="width:10%;color:#78350f">First day</th>
+    <th style="width:10%;color:#78350f">Last day</th>
+    <th style="width:7%;color:#78350f">Rate</th>
+    <th style="width:10%;color:#78350f">Amount</th>
+    <th style="width:9%;color:#78350f">Status</th>
   </tr>`;
   const emptyEl=document.getElementById('ph-inv-empty');
   const countEl=document.getElementById('ph-inv-count');
@@ -5968,13 +5847,13 @@ function renderPHAgreements() {
     return true;
   });
   const thead=document.getElementById('ph-ag-thead');
-  if (thead) thead.innerHTML=`<tr>
-    <th style="width:22%">Patient name</th>
-    <th style="width:14%">CIN</th>
-    <th style="width:12%">Auth date</th>
-    <th style="width:12%">6 month date</th>
-    <th style="width:16%">Agreement exp.</th>
-    <th style="width:24%">Re-auth / Move out</th>
+  if (thead) thead.innerHTML=`<tr style="background:#fef3c7">
+    <th style="width:22%;color:#78350f">Patient name</th>
+    <th style="width:14%;color:#78350f">CIN</th>
+    <th style="width:12%;color:#78350f">Auth date</th>
+    <th style="width:12%;color:#78350f">6 month date</th>
+    <th style="width:16%;color:#78350f">Agreement exp.</th>
+    <th style="width:24%;color:#78350f">Re-auth / Move out</th>
   </tr>`;
   const emptyEl=document.getElementById('ph-ag-empty');
   const countEl=document.getElementById('ph-ag-count');
