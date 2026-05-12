@@ -1879,7 +1879,8 @@ function loadFromSheet(onDone) {
       if (data.invoices && data.invoices.length>0) {
         const seen = new Set();
         INVOICE_DATA_ARR = data.invoices.filter(r => {
-          const key = (r.month||'') + '|' + (r.name||'').toLowerCase().trim();
+          // Include invoice number in key so duplicate invoices for same patient/month are both kept
+          const key = (r.month||'') + '|' + (r.name||'').toLowerCase().trim() + '|' + (r.invoice||'').toLowerCase().trim();
           if (seen.has(key)) return false;
           seen.add(key);
           r.total = 0; // always recalculate
