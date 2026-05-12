@@ -4135,6 +4135,10 @@ function getLastDayFromAgreement(name, cin, month) {
 
 
 function getEffectiveDates(r) {
+  // MANUAL (Quick Add) entries use only their own stored dates — never touch the tracker
+  if (r.agreement === 'MANUAL') {
+    return { firstDay: r.firstDay || null, lastDay: r.lastDay || null };
+  }
   const s = getAgreementStatus(r.name, r.cin, r.month);
   if (s !== 'active' && s !== 'expiring') return { firstDay: null, lastDay: null };
   const first = r.firstDay || getAutoFirstDay(r.name, r.cin, r.month);
@@ -4144,9 +4148,17 @@ function getEffectiveDates(r) {
 }
 
 function getDisplayTotal(r) {
-  if (r.total > 0) return r.total;
-
   const rate = r.rate || 99;
+
+  // MANUAL (Quick Add) entries: always recalculate from their own dates — never pull from tracker
+  if (r.agreement === 'MANUAL') {
+    const _p = s => { if (!s) return null; const p = s.split('/'); return p.length === 3 ? new Date(parseInt(p[2].length===2?'20'+p[2]:p[2]), parseInt(p[0])-1, parseInt(p[1])) : null; };
+    const _d1 = _p(r.firstDay), _d2 = _p(r.lastDay);
+    const _days = (_d1 && _d2) ? Math.round((_d2 - _d1) / 86400000) + 1 : 0;
+    return _days * rate;
+  }
+
+  if (r.total > 0) return r.total;
 
   // Calculate main dates via agreement
   const { firstDay, lastDay } = getEffectiveDates(r);
@@ -4269,7 +4281,7 @@ function renderInvoices() {
         <button class="pencil-btn${r.priorStart?' has-prior':''}" onclick="openPriorModal('${r.month}',findInvoiceIdx('${r.name}','${r.month}'))" title="${r.priorStart?'Edit prior period':'Add prior period'}">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 2l3 3-8 8H3v-3l8-8z"/></svg>
         </button>
-        ${r.name && r.invoice && /^FL-\d+$/.test(r.invoice) ? `<button class="pencil-btn" onclick="openInvoice(findInvoiceIdx(this.dataset.name,this.dataset.month))" data-name="${r.name}" data-month="${r.month}" title="Generate invoice" style="margin-left:2px;color:#3d7a2e">
+        ${r.name && r.invoice && /^FL-\d+$/.test(r.invoice) ? `<button class="pencil-btn" onclick="openInvoice(${INVOICE_DATA_ARR.indexOf(r)})" title="Generate invoice" style="margin-left:2px;color:#3d7a2e">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="1" width="10" height="14" rx="1"/><path d="M6 5h4M6 8h4M6 11h2"/></svg>
         </button>` : ''}
       </div>
@@ -6160,20 +6172,16 @@ function confirmQuickAdd() {
   const first = (document.getElementById('qa-first').value || '').trim();
   const last  = (document.getElementById('qa-last').value  || '').trim();
 
-  // Calculate days and amount if dates provided
-  const days = (first && last) ? daysBetweenDates(first, last) : 0;
-  const total = days * 99;
-
   INVOICE_DATA_ARR.push({
     month:      activeMonth,
     invoice:    '',
     name:       name,
     cin:        cin,
-    agreement:  'MANUAL',   // flag so it doesn't need tracker match
+    agreement:  'MANUAL',   // flag so it doesn't need tracker match — dates are self-contained
     firstDay:   first,
     lastDay:    last,
     rate:       99,
-    total:      total,
+    total:      0,           // always recalculated from firstDay/lastDay for MANUAL entries
     payment:    '',
     priorStart: '', priorEnd: '', priorDays: 0, priorTotal: 0
   });
