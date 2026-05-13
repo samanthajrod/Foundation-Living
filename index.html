@@ -2331,12 +2331,35 @@ function renderStats() {
   const s=monthStats(activeMonth);
   const diffColor = s.diff === 0 ? '#4ade80' : s.diff > 0 ? '#fbbf24' : '#f87171';
   const diffLabel = s.diff === 0 ? '✓ Fully invoiced' : s.diff > 0 ? fmt(s.diff) + ' not yet invoiced' : 'Over-invoiced by ' + fmt(Math.abs(s.diff));
+
+  // Calculate total actual paid for active month
+  const monthRows = INVOICE_DATA_ARR.filter(r => r.month === activeMonth && r.invoice && /^FL-\d+$/.test(r.invoice));
+  const totalActualPaid = monthRows.reduce((sum, r) => {
+    const invoiced = getDisplayTotal(r);
+    const paid = r.actualPaid != null ? r.actualPaid : invoiced;
+    return sum + paid;
+  }, 0);
+  const totalInvoiced = monthRows.reduce((sum, r) => sum + getDisplayTotal(r), 0);
+  const totalDiff = Math.round((totalActualPaid - totalInvoiced) * 100) / 100;
+  const paidDiffHtml = totalDiff === 0
+    ? '<span style="color:#86e0aa;font-weight:600">✓ Fully paid</span>'
+    : totalDiff < 0
+      ? '<span style="color:#fca5a5;font-weight:600">Short ' + fmt(Math.abs(totalDiff)) + '</span>'
+      : '<span style="color:#86e0aa;font-weight:600">Over ' + fmt(totalDiff) + '</span>';
+
   document.getElementById('stats-row').innerHTML=`
     <div style="display:flex;flex-direction:column;gap:10px">
-      <div style="background:linear-gradient(135deg,#1c2f4a,#2a4a6b);border-radius:10px;padding:14px 22px;display:inline-block;box-shadow:0 4px 14px rgba(28,47,74,0.2)">
-        <div style="font-size:11px;color:#8fa4c0;font-weight:500;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.06em">Total Billed — ${activeMonth}</div>
-        <div style="font-size:24px;font-weight:700;color:#ffffff">${fmt(s.total)}</div>
-        <div style="font-size:11px;color:#8fa4c0;margin-top:5px">${s.billed} patient${s.billed !== 1 ? 's' : ''} invoiced</div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <div style="background:linear-gradient(135deg,#1c2f4a,#2a4a6b);border-radius:10px;padding:14px 22px;box-shadow:0 4px 14px rgba(28,47,74,0.2);flex:1;min-width:180px">
+          <div style="font-size:11px;color:#8fa4c0;font-weight:500;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.06em">Total Billed — ${activeMonth}</div>
+          <div style="font-size:24px;font-weight:700;color:#ffffff">${fmt(s.total)}</div>
+          <div style="font-size:11px;color:#8fa4c0;margin-top:5px">${s.billed} patient${s.billed !== 1 ? 's' : ''} invoiced</div>
+        </div>
+        <div style="background:linear-gradient(135deg,#1a3a2a,#2a5a3e);border-radius:10px;padding:10px 16px;box-shadow:0 4px 14px rgba(26,58,42,0.2);display:flex;flex-direction:column;justify-content:center;gap:2px">
+          <div style="font-size:10px;color:#7abf9a;font-weight:500;text-transform:uppercase;letter-spacing:0.06em">Actual Paid — ${activeMonth}</div>
+          <div style="font-size:18px;font-weight:700;color:#ffffff">${fmt(totalActualPaid)}</div>
+          <div style="font-size:10px;margin-top:1px">${paidDiffHtml}</div>
+        </div>
       </div>
       <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 16px;font-size:12px;color:#475569;display:flex;gap:24px;align-items:center;flex-wrap:wrap">
         <span>📋 All amounts: <strong style="color:#1c2f4a">${fmt(s.total)}</strong></span>
@@ -4018,6 +4041,21 @@ function saveInvoiceNote(idx, val) {
   markUnsaved();
 }
 
+function saveActualPaid(idx, val) {
+  const clean = val.replace(/[$,\s]/g, '').trim();
+  const num = parseFloat(clean);
+  INVOICE_DATA_ARR[idx].actualPaid = (clean === '' || isNaN(num)) ? null : num;
+  markUnsaved();
+  renderStats();
+  renderInvoices();
+}
+
+function editActualPaid(idx, invoiced, current) {
+  const val = prompt('Enter actual amount received (invoiced: $' + invoiced.toLocaleString() + '):', '$' + current.toLocaleString());
+  if (val === null) return;
+  saveActualPaid(idx, val);
+}
+
 
 
 function findTrackerMatch(name, cin) {
@@ -4220,6 +4258,7 @@ function renderInvoices() {
     <th style="width:10%">Last day</th>
     <th style="width:7%">Rate</th>
     <th style="width:10%">Amount</th>
+    <th style="width:7%;text-align:center">Paid</th>
     <th style="width:9%">Status</th>
   </tr>`;
   const empty=document.getElementById('inv-empty');
@@ -4294,6 +4333,23 @@ function renderInvoices() {
         const fmt = s => { const p = s.split('/'); return p[0] + '/' + p[1]; };
         const parts = periods.map(p => fmt(p.start) + '–' + fmt(p.end));
         return '<div style="font-size:10px;color:#94a3b8;margin-top:2px">' + parts.join(' · ') + '</div>';
+      })()}
+    </td>
+    <td style="text-align:center;padding:6px 8px">
+      ${(()=>{
+        const idx = INVOICE_DATA_ARR.indexOf(r);
+        const s = getAgreementStatus(r.name, r.cin, r.month);
+        const hasPeriods = (r.billingPeriods && r.billingPeriods.length > 0) || r.priorStart;
+        const hasAmt = (s==='active'||s==='expiring'||hasPeriods||r.agreement==='MANUAL');
+        if (!hasAmt) return '<span style="color:#94a3b8;font-size:11px">—</span>';
+        const invoiced = getDisplayTotal(r);
+        const actual = r.actualPaid != null ? r.actualPaid : invoiced;
+        const diff = Math.round((parseFloat(actual) - invoiced) * 100) / 100;
+        let badge = '';
+        if (diff === 0) badge = '<span style="display:inline-flex;align-items:center;gap:2px;padding:2px 7px;border-radius:5px;font-size:10px;font-weight:600;background:#eefbf3;color:#1e6b3d;border:1px solid #86e0aa;cursor:pointer" onclick="editActualPaid(' + idx + ',' + invoiced + ',' + actual + ')" title="Click to edit">✓ Match</span>';
+        else if (diff < 0) badge = '<span style="display:inline-flex;align-items:center;gap:2px;padding:2px 7px;border-radius:5px;font-size:10px;font-weight:600;background:#fff0f0;color:#a82828;border:1px solid #fcc8c8;cursor:pointer" onclick="editActualPaid(' + idx + ',' + invoiced + ',' + actual + ')" title="Click to edit">Short $' + Math.abs(diff).toLocaleString() + '</span>';
+        else badge = '<span style="display:inline-flex;align-items:center;gap:2px;padding:2px 7px;border-radius:5px;font-size:10px;font-weight:600;background:#eefbf3;color:#1e6b3d;border:1px solid #86e0aa;cursor:pointer" onclick="editActualPaid(' + idx + ',' + invoiced + ',' + actual + ')" title="Click to edit">Over $' + diff.toLocaleString() + '</span>';
+        return badge;
       })()}
     </td>
     <td>${statusDropdown(r, INVOICE_DATA_ARR.indexOf(r))}</td>
@@ -4636,7 +4692,7 @@ function openInvoice(dataIdx) {
         '<div class="inv-logo-sub">Lodi, CA 95240</div>' +
         '<div class="inv-logo-sub">admin@foundationliving.org</div></div>' +
         '<div class="inv-title"><h1 style="margin-bottom:10px">Invoice</h1>' +
-        '<div class="inv-meta">Invoice #: <strong>' + (r.invoice||'Pending') + '</strong><br>Date: <strong>' + flInvoiceDate + '</strong><br>Due: <strong>' + dueDate + '</strong><br>Amount due: <strong style="color:#3d7a2e">$' + grandTotal.toLocaleString() + '.00</strong></div>' +
+        '<div class="inv-meta">Invoice #: <strong>' + (r.invoice||'Pending') + '</strong><br>Date: <strong>' + flInvoiceDate + '</strong><br>Due: <strong>' + dueDate + '</strong><br>Amount due: <strong style="color:#3d7a2e">$' + grandTotal.toLocaleString() + '.00</strong>' + (()=>{ if (r.actualPaid == null) return ''; const diff = Math.round((r.actualPaid - grandTotal) * 100) / 100; if (diff === 0) return ''; if (diff < 0) return '<br>Actual paid: <strong style="color:#a82828">$' + parseFloat(r.actualPaid).toLocaleString() + '.00</strong> <span style="color:#a82828;font-size:11px">(Short $' + Math.abs(diff).toLocaleString() + ')</span>'; return '<br>Actual paid: <strong style="color:#1e6b3d">$' + parseFloat(r.actualPaid).toLocaleString() + '.00</strong> <span style="color:#1e6b3d;font-size:11px">(Over $' + diff.toLocaleString() + ')</span>'; })() + '</div>' +
         '</div></div>' +
       '<div class="inv-addresses"><div><div class="inv-address-label">Bill to</div><div class="inv-address-name">MasterCare</div><div class="inv-address-detail">1700 I Street, Suite 210<br>Sacramento, CA 95811<br>billing@mastercareplan.com</div></div></div>' +
       '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;margin-bottom:16px;display:flex;gap:32px"><div><div style="font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px">Patient</div><div style="font-size:13px;font-weight:600;color:#1a1f2e">' + r.name + '</div></div><div><div style="font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px">CIN</div><div style="font-size:13px;font-weight:500;color:#1a1f2e;font-family:monospace">' + r.cin + '</div></div><div><div style="font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:3px">Services</div><div style="font-size:13px;font-weight:500;color:#1a1f2e">Short-Term Post-Hospitalization Housing</div></div></div>' +
